@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SiSocial</title>
+<style>
+body{margin:0;background:#0f1115;color:#e9eef5;font-family:-apple-system,BlinkMacSystemFont,Arial}
+header{padding:12px;background:#121520;border-bottom:1px solid #252a35}
+.screen{display:none;padding:12px}
+.active{display:block}
+.card{background:#171a21;border:1px solid #252a35;border-radius:14px;padding:12px;margin:10px 0}
+input,textarea,button{width:100%;padding:10px;margin:6px 0;border-radius:10px;border:1px solid #2a3140;background:#0f1115;color:#e9eef5}
+button{background:#23c55e;color:#07110a;font-weight:bold;border:none}
+.tabs{display:flex;gap:6px}
+.tabs button{flex:1}
+.post{background:#171a21;border:1px solid #252a35;border-radius:14px;padding:10px;margin:12px 0}
+.post img,.post video{width:100%;border-radius:12px}
+.comment{background:#0f1115;border:1px solid #2a3140;border-radius:10px;padding:6px;margin:6px 0}
+.chatbox{height:240px;overflow:auto;background:#0f1115;border:1px solid #2a3140;border-radius:12px;padding:10px}
+.bubble{max-width:80%;padding:8px 10px;border-radius:14px;margin:6px 0}
+.me{background:#23c55e;color:#07110a;margin-left:auto}
+.other{background:#2a3140}
+.small{color:#95a1b8;font-size:12px}
+</style>
+</head>
+<body>
+<header><b>SiSocial</b></header>
+
+<div id="auth" class="screen active">
+  <div class="card">
+    <h3>Criar conta</h3>
+    <input id="rname" placeholder="Nome">
+    <input id="ryear" type="number" placeholder="Ano nascimento">
+    <textarea id="rbio" placeholder="Bio (opcional)"></textarea>
+    <input id="rphoto" type="file" accept="image/*">
+    <button onclick="register()">Criar</button>
+  </div>
+  <div class="card">
+    <h3>Entrar</h3>
+    <input id="lname" placeholder="Nome">
+    <input id="lyear" type="number" placeholder="Ano nascimento">
+    <button onclick="login()">Entrar</button>
+  </div>
+</div>
+
+<div id="app" class="screen">
+  <div class="tabs">
+    <button onclick="show('feed')">Feed</button>
+    <button onclick="show('post')">Postar</button>
+    <button onclick="show('people')">Pessoas</button>
+    <button onclick="show('chat')">Chat</button>
+  </div>
+
+  <div id="feed" class="card"></div>
+
+  <div id="post" class="card" style="display:none">
+    <h3>Novo post</h3>
+    <input type="file" id="media" accept="image/*,video/*" onchange="previewMedia()">
+    <div id="previewBox"></div>
+    <button onclick="addPost()">Postar</button>
+    <div id="status" class="small"></div>
+  </div>
+
+  <div id="people" class="card" style="display:none">
+    <h3>Pessoas</h3>
+    <div id="peopleList"></div>
+  </div>
+
+  <div id="chat" class="card" style="display:none">
+    <h3>Chat</h3>
+    <div id="chatbox" class="chatbox"></div>
+    <input id="to" placeholder="Nome do contato">
+    <input id="msg" placeholder="Mensagem">
+    <button onclick="sendMsg()">Enviar</button>
+  </div>
+</div>
+
+<script>
+const S={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
+let u=S.get("user",null);
+if(u)start();
+
+function register(){
+ let n=rname.value.trim(),y=+ryear.value,f=rphoto.files[0],b=rbio.value.trim();
+ if(!n||!y||!f)return alert("Preencha nome, ano e foto");
+ if(new Date().getFullYear()-y<9)return alert("Precisa ter 9+");
+ let r=new FileReader();
+ r.onload=()=>{
+  let acc=S.get("accs",{});
+  if(acc[n])return alert("Nome já existe");
+  acc[n]={year:y,bio:b,photo:r.result,following:[]};
+  S.set("accs",acc);
+  alert("Conta criada! Faça login.");
+ };
+ r.readAsDataURL(f);
+}
+
+function login(){
+ let acc=S.get("accs",{});
+ let n=lname.value.trim(),y=+lyear.value;
+ if(!acc[n])return alert("Conta não existe");
+ if(acc[n].year!==y)return alert("Ano errado");
+ u={name:n};S.set("user",u);
+ start();
+}
+
+function start(){
+ auth.classList.remove("active");
+ app.classList.add("active");
+ renderFeed();renderPeople();renderChat();
+}
+
+function show(id){
+ feed.style.display=post.style.display=people.style.display=chat.style.display="none";
+ document.getElementById(id).style.display="block";
+ if(id=="feed")renderFeed();
+ if(id=="people")renderPeople();
+ if(id=="chat")renderChat();
+}
+
+function previewMedia(){
+ let f=media.files[0];
+ if(!f)return;
+ let url=URL.createObjectURL(f);
+ previewBox.innerHTML=f.type.startsWith("image")?`<img src="${url}">`:`<video src="${url}" controls></video>`;
+}
+
+function addPost(){
+ let f=media.files[0];
+ if(!f)return alert("Escolha arquivo");
+ let r=new FileReader();
+ r.onload=()=>{
+  let posts=S.get("posts",[]);
+  posts.unshift({author:u.name,type:f.type.startsWith("video")?"vid":"img",src:r.result,likes:0,comments:[]});
+  S.set("posts",posts);
+  media.value="";previewBox.innerHTML="";
+  status.textContent="Post enviado!";
+  setTimeout(()=>status.textContent="",1500);
+  renderFeed();show("feed");
+ };
+ r.readAsDataURL(f);
+}
+
+function renderFeed(){
+ let posts=S.get("posts",[]);
+ feed.innerHTML="";
+ if(posts.length==0){feed.innerHTML="<div class='small'>Nenhum post ainda</div>";return;}
+ posts.forEach((p,i)=>{
+  let comments=p.comments.map(c=>`<div class='comment'><b>${c.u}</b>: ${c.t}</div>`).join("");
+  feed.innerHTML+=`
+  <div class="post">
+    <b>${p.author}</b><br>
+    ${p.type=="img"?`<img src="${p.src}">`:`<video src="${p.src}" controls></video>`}
+    ❤️ ${p.likes} <button onclick="like(${i})">Curtir</button>
+    <div>${comments}</div>
+    <input placeholder="Comentar..." id="c${i}">
+    <button onclick="comment(${i})">Enviar comentário</button>
+  </div>`;
+ });
+}
+
+function like(i){
+ let posts=S.get("posts",[]);
+ posts[i].likes++;
+ S.set("posts",posts);
+ renderFeed();
+}
+
+function comment(i){
+ let inp=document.getElementById("c"+i);
+ let text=inp.value.trim();
+ if(!text)return;
+ let posts=S.get("posts",[]);
+ posts[i].comments.push({u:u.name,t:text});
+ S.set("posts",posts);
+ renderFeed();
+}
+
+function renderPeople(){
+ let acc=S.get("accs",{});
+ let me=acc[u.name];
+ let list="";
+ Object.keys(acc).forEach(name=>{
+  if(name===u.name)return;
+  let followed=me.following.includes(name);
+  list+=`
+  <div class="comment">
+    <b>${name}</b> <span class="small">${acc[name].bio||""}</span><br>
+    <button onclick="toggleFollow('${name}')">${followed?"Seguindo":"Seguir"}</button>
+  </div>`;
+ });
+ peopleList.innerHTML=list||"<div class='small'>Nenhum outro usuário</div>";
+}
+
+function toggleFollow(name){
+ let acc=S.get("accs",{});
+ let me=acc[u.name];
+ if(me.following.includes(name))
+  me.following=me.following.filter(n=>n!==name);
+ else me.following.push(name);
+ S.set("accs",acc);
+ renderPeople();
+}
+
+function renderChat(){
+ let msgs=S.get("chat",[]);
+ chatbox.innerHTML=msgs.map(m=>`
+  <div class="bubble ${m.from==u.name?"me":"other"}">
+    <b>${m.from}</b><br>${m.text}
+  </div>`).join("");
+ chatbox.scrollTop=chatbox.scrollHeight;
+}
+
+function sendMsg(){
+ let toN=to.value.trim(),text=msg.value.trim();
+ if(!toN||!text)return;
+ let acc=S.get("accs",{});
+ if(!acc[toN])return alert("Usuário não existe");
+ let msgs=S.get("chat",[]);
+ msgs.push({from:u.name,to:toN,text});
+ S.set("chat",msgs);
+ msg.value="";
+ renderChat();
+}
+</script>
+</body>
+</html>
