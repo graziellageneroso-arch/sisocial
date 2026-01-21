@@ -4,22 +4,22 @@
 <meta charset="UTF-8">
 <title>SiSocial</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#000">
+<meta name="theme-color" content="#000000">
 
 <link rel="icon" href="data:image/svg+xml;utf8,
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
 <rect width='100' height='100' rx='20' fill='black'/>
-<text x='50%' y='65%' text-anchor='middle' font-size='65' fill='lime' font-family='Arial'>S</text>
+<text x='50%' y='65%' text-anchor='middle' font-size='60' fill='lime' font-family='Arial'>S</text>
 </svg>">
 
 <style>
 body{margin:0;font-family:Arial;background:#0b0b0b;color:#fff}
-.box{background:#151515;margin:10px;padding:10px;border-radius:10px}
+.box{background:#151515;margin:10px;padding:12px;border-radius:12px}
 input,textarea,button{width:100%;padding:8px;margin:5px 0;border-radius:6px;border:none}
-button{background:lime;color:#000;font-weight:bold}
+button{background:lime;color:black;font-weight:bold}
 .hidden{display:none}
 img{max-width:100%;border-radius:10px;margin-top:5px}
-.chat{height:160px;overflow:auto;background:#000;padding:6px;border-radius:8px}
+.chat{height:180px;overflow:auto;background:#000;padding:6px;border-radius:8px}
 </style>
 </head>
 <body>
@@ -56,7 +56,7 @@ img{max-width:100%;border-radius:10px;margin-top:5px}
   <button onclick="sendChat()">Enviar</button>
 </div>
 
-<!-- Firebase -->
+<!-- Firebase compat (funciona em HTML simples) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
@@ -68,19 +68,18 @@ const firebaseConfig = {
   projectId: "sisocial",
   storageBucket: "sisocial.appspot.com",
   messagingSenderId: "25069295126",
-  appId: "1:25069295126:web:b460d4ccbeb77e529b0737"
+  appId: "1:25069295126:web:bbe29b7b69843db29b0737"
 };
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
 
-// força conexão online (corrige "cliente offline")
 db.enableNetwork().catch(()=>{});
 
 let currentUser = null;
 
-// ---------- CADASTRO ----------
+// -------- CADASTRO --------
 async function register(){
   try{
     const name = rName.value.trim();
@@ -91,24 +90,24 @@ async function register(){
     if(!name || !year || !file) return alert("Preencha tudo");
     if(new Date().getFullYear() - year < 9) return alert("Precisa ter 9+ anos");
 
-    const userRef = db.collection("users").doc(name);
-    if((await userRef.get()).exists) return alert("Nome já existe");
+    const ref = db.collection("users").doc(name);
+    if((await ref.get()).exists) return alert("Nome já existe");
 
     const imgRef = storage.ref("profiles/" + name + ".jpg");
     await imgRef.put(file);
-    const photoURL = await imgRef.getDownloadURL();
+    const photo = await imgRef.getDownloadURL();
 
-    const data = { name, year, bio, photo: photoURL };
-    await userRef.set(data);
+    const data = {name, year, bio, photo};
+    await ref.set(data);
 
     currentUser = data;
     openApp();
-  } catch(e){
+  }catch(e){
     alert("Erro no cadastro: " + e.message);
   }
 }
 
-// ---------- LOGIN ----------
+// -------- LOGIN --------
 async function login(){
   try{
     const name = lName.value.trim();
@@ -122,12 +121,12 @@ async function login(){
 
     currentUser = data;
     openApp();
-  } catch(e){
+  }catch(e){
     alert("Erro no login: " + e.message);
   }
 }
 
-// ---------- ABRIR APP ----------
+// -------- APP --------
 function openApp(){
   auth.classList.add("hidden");
   app.classList.remove("hidden");
@@ -136,7 +135,7 @@ function openApp(){
   loadChat();
 }
 
-// ---------- POST ----------
+// -------- POST --------
 async function sendPost(){
   try{
     const text = postText.value;
@@ -166,7 +165,7 @@ async function sendPost(){
   }
 }
 
-// ---------- FEED ----------
+// -------- FEED --------
 async function loadFeed(){
   feed.innerHTML = "";
   const snap = await db.collection("posts").orderBy("time","desc").get();
@@ -181,7 +180,7 @@ async function loadFeed(){
   });
 }
 
-// ---------- CHAT ----------
+// -------- CHAT --------
 async function sendChat(){
   if(!chatInput.value) return;
   await db.collection("chat").add({
