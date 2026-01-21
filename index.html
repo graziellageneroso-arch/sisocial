@@ -5,123 +5,215 @@
 <title>SiSocial</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- ÍCONE EMBUTIDO (não precisa de arquivo externo) -->
+<!-- ÍCONE EMBUTIDO -->
 <link rel="icon" href="data:image/svg+xml;utf8,
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
 <rect width='100' height='100' rx='22' fill='black'/>
-<text x='50%' y='65%' text-anchor='middle' font-size='70' fill='#00ff88' font-family='Arial'>S</text>
+<text x='50%' y='65%' text-anchor='middle' font-size='70' fill='lime' font-family='Arial'>S</text>
 </svg>">
 
-<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
-<rect width='100' height='100' rx='22' fill='black'/>
-<text x='50%' y='65%' text-anchor='middle' font-size='70' fill='#00ff88' font-family='Arial'>S</text>
-</svg>">
-
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#000">
 
 <style>
-body{font-family:Arial;margin:0;padding:10px;background:#eee}
-.box{background:#fff;padding:10px;margin-bottom:10px}
+body{margin:0;font-family:Arial;background:#111;color:#fff}
 .hidden{display:none}
-button{margin-top:5px}
-.post{border-bottom:1px solid #ccc;padding:5px 0}
+.box{background:#1c1c1c;padding:10px;margin:10px;border-radius:10px}
+input,textarea,button{width:100%;padding:8px;margin:4px 0;border-radius:6px;border:none}
+button{background:lime;color:#000;font-weight:bold}
+.post{border-top:1px solid #333;padding:8px}
+.post img{max-width:100%;border-radius:8px}
+.comment{font-size:13px;color:#ccc;margin-left:10px}
+.chatbox{height:150px;overflow:auto;background:#000;padding:8px;border-radius:8px}
+.profile{display:flex;gap:10px;align-items:center}
+.profile img{width:60px;height:60px;border-radius:50%;object-fit:cover}
+
+/* Splash */
+#splash{
+position:fixed;inset:0;background:#000;
+display:flex;align-items:center;justify-content:center;
+flex-direction:column;z-index:9999;
+animation:fadeout 1s ease 3s forwards;
+}
+#logo{font-size:80px;color:lime;animation:scale 1.5s ease;}
+#name{opacity:0;animation:show 1s ease 1.5s forwards;}
+
+@keyframes scale{from{transform:scale(0)}to{transform:scale(1)}}
+@keyframes show{to{opacity:1}}
+@keyframes fadeout{to{opacity:0;visibility:hidden}}
 </style>
 </head>
 <body>
 
-<div id="login" class="box">
-  <input id="name" placeholder="Nome">
+<div id="splash">
+  <div id="logo">S</div>
+  <div id="name">SiSocial</div>
+</div>
+
+<div id="loginBox" class="box">
+  <input id="loginName" placeholder="Nome">
+  <input id="loginYear" type="number" placeholder="Ano de nascimento">
   <button onclick="login()">Entrar</button>
 </div>
 
+<div id="registerBox" class="box">
+  <input id="regName" placeholder="Nome">
+  <input id="regYear" type="number" placeholder="Ano nascimento">
+  <textarea id="regBio" placeholder="Bio"></textarea>
+  <input id="regPhoto" type="file" accept="image/*">
+  <button onclick="register()">Cadastrar</button>
+</div>
+
 <div id="app" class="hidden">
-  <div class="box">
-    <b id="me"></b>
-    <button onclick="logout()">Sair</button>
+
+  <div class="box profile">
+    <img id="mePhoto">
+    <div><b id="meName"></b><br><small id="meBio"></small></div>
   </div>
 
   <div class="box">
-    <input id="postText" placeholder="Post">
+    <textarea id="postText" placeholder="Texto"></textarea>
+    <input id="postImage" type="file" accept="image/*">
     <button onclick="post()">Postar</button>
   </div>
 
   <div class="box">
-    <input id="search" placeholder="Buscar usuário" oninput="searchUser()">
-    <div id="results"></div>
+    <h3>Feed</h3>
+    <div id="feed"></div>
   </div>
 
-  <div class="box" id="feed"></div>
+  <div class="box">
+    <h3>Chat</h3>
+    <div id="chat" class="chatbox"></div>
+    <input id="chatInput" placeholder="Mensagem">
+    <button onclick="sendChat()">Enviar</button>
+  </div>
+
 </div>
 
+<!-- Firebase CDN -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+
 <script>
-let users=JSON.parse(localStorage.getItem("users"))||[];
-let me=null;
+const firebaseConfig = {
+  apiKey: "AIzaSyClDT4Yl4nSOGLOR5sVXlnaf9pwnYjZHAw",
+  authDomain: "sisocial.firebaseapp.com",
+  projectId: "sisocial",
+  storageBucket: "sisocial.firebasestorage.app",
+  messagingSenderId: "25069295126",
+  appId: "1:25069295126:web:b460d4ccbeb77e529b0737"
+};
 
-function save(){localStorage.setItem("users",JSON.stringify(users));}
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
 
-function login(){
-  const n=name.value.trim();
-  if(!n)return;
-  me=users.find(u=>u.name===n);
-  if(!me){
-    me={id:Date.now(),name:n,following:[],posts:[]};
-    users.push(me); save();
-  }
-  localStorage.setItem("me",me.id);
+let me = null;
+
+// ---------- CADASTRO ----------
+async function register(){
+  const n = regName.value.trim();
+  const y = +regYear.value;
+  const b = regBio.value.trim();
+  const f = regPhoto.files[0];
+  if(!n||!y||!f) return alert("Preencha tudo");
+  if(new Date().getFullYear()-y<9) return alert("Precisa 9+");
+
+  const snap = await db.collection("users").doc(n).get();
+  if(snap.exists) return alert("Nome já existe");
+
+  const ref = storage.ref("profiles/"+n);
+  await ref.put(f);
+  const url = await ref.getDownloadURL();
+
+  await db.collection("users").doc(n).set({name:n,year:y,bio:b,photo:url});
+  alert("Conta criada! Agora entre.");
+}
+
+// ---------- LOGIN ----------
+async function login(){
+  const n = loginName.value.trim();
+  const y = +loginYear.value;
+
+  const doc = await db.collection("users").doc(n).get();
+  if(!doc.exists || doc.data().year!==y) return alert("Erro login");
+
+  me = doc.data();
   start();
 }
 
-function logout(){
-  localStorage.removeItem("me");
-  location.reload();
+// ---------- START ----------
+function start(){
+  loginBox.classList.add("hidden");
+  registerBox.classList.add("hidden");
+  app.classList.remove("hidden");
+  meName.innerText = me.name;
+  meBio.innerText = me.bio;
+  mePhoto.src = me.photo;
+  loadFeed();
+  loadChat();
 }
 
-function start(){
-  loginDiv.classList.add("hidden");
-  app.classList.remove("hidden");
-  document.getElementById("me").innerText=me.name;
+// ---------- POST ----------
+async function post(){
+  const text = postText.value;
+  const file = postImage.files[0];
+  if(!text && !file) return;
+
+  let imageUrl = "";
+  if(file){
+    const ref = storage.ref("posts/"+Date.now()+"-"+me.name);
+    await ref.put(file);
+    imageUrl = await ref.getDownloadURL();
+  }
+
+  await db.collection("posts").add({
+    author: me.name,
+    text,
+    image: imageUrl,
+    time: Date.now()
+  });
+
+  postText.value="";
+  postImage.value="";
   loadFeed();
 }
 
-function searchUser(){
-  results.innerHTML="";
-  users.filter(u=>u.name.includes(search.value)&&u.id!==me.id)
-  .forEach(u=>{
-    results.innerHTML+=`${u.name}
-    <button onclick="follow(${u.id})">Seguir</button><br>`;
-  });
-}
-
-function follow(id){
-  if(!me.following.includes(id)){
-    me.following.push(id); save(); loadFeed();
-  }
-}
-
-function post(){
-  if(!postText.value)return;
-  me.posts.push(postText.value);
-  postText.value=""; save(); loadFeed();
-}
-
-function loadFeed(){
+// ---------- FEED ----------
+async function loadFeed(){
   feed.innerHTML="";
-  users.forEach(u=>{
-    if(me.following.includes(u.id)){
-      u.posts.forEach(p=>{
-        feed.innerHTML+=`<div class="post"><b>${u.name}</b><br>${p}</div>`;
-      });
-    }
+  const snap = await db.collection("posts").orderBy("time","desc").get();
+  snap.forEach(doc=>{
+    const p=doc.data();
+    feed.innerHTML += `
+      <div class="post">
+        <b>${p.author}</b><br>${p.text||""}
+        ${p.image?`<img src="${p.image}">`:""}
+      </div>`;
   });
 }
 
-const saved=localStorage.getItem("me");
-if(saved){
-  const u=users.find(x=>x.id==saved);
-  if(u){me=u;start();}
+// ---------- CHAT ----------
+async function sendChat(){
+  if(!chatInput.value) return;
+  await db.collection("chat").add({
+    user: me.name,
+    text: chatInput.value,
+    time: Date.now()
+  });
+  chatInput.value="";
+  loadChat();
+}
+
+async function loadChat(){
+  chat.innerHTML="";
+  const snap = await db.collection("chat").orderBy("time").get();
+  snap.forEach(d=>{
+    const m=d.data();
+    chat.innerHTML += `${m.user}: ${m.text}<br>`;
+  });
 }
 </script>
-
 </body>
 </html>
