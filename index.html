@@ -5,7 +5,7 @@
 <title>SiSocial</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- ÍCONE EMBUTIDO -->
+<!-- Ícone embutido -->
 <link rel="icon" href="data:image/svg+xml;utf8,
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
 <rect width='100' height='100' rx='22' fill='black'/>
@@ -22,7 +22,6 @@ input,textarea,button{width:100%;padding:8px;margin:4px 0;border-radius:6px;bord
 button{background:lime;color:#000;font-weight:bold}
 .post{border-top:1px solid #333;padding:8px}
 .post img{max-width:100%;border-radius:8px}
-.comment{font-size:13px;color:#ccc;margin-left:10px}
 .chatbox{height:150px;overflow:auto;background:#000;padding:8px;border-radius:8px}
 .profile{display:flex;gap:10px;align-items:center}
 .profile img{width:60px;height:60px;border-radius:50%;object-fit:cover}
@@ -36,7 +35,6 @@ animation:fadeout 1s ease 3s forwards;
 }
 #logo{font-size:80px;color:lime;animation:scale 1.5s ease;}
 #name{opacity:0;animation:show 1s ease 1.5s forwards;}
-
 @keyframes scale{from{transform:scale(0)}to{transform:scale(1)}}
 @keyframes show{to{opacity:1}}
 @keyframes fadeout{to{opacity:0;visibility:hidden}}
@@ -90,7 +88,7 @@ animation:fadeout 1s ease 3s forwards;
 
 </div>
 
-<!-- Firebase CDN -->
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
@@ -111,39 +109,59 @@ const storage = firebase.storage();
 
 let me = null;
 
-// ---------- CADASTRO ----------
+// CADASTRO (com login automático)
 async function register(){
-  const n = regName.value.trim();
-  const y = +regYear.value;
-  const b = regBio.value.trim();
-  const f = regPhoto.files[0];
-  if(!n||!y||!f) return alert("Preencha tudo");
-  if(new Date().getFullYear()-y<9) return alert("Precisa 9+");
+  try {
+    const n = regName.value.trim();
+    const y = +regYear.value;
+    const b = regBio.value.trim();
+    const f = regPhoto.files[0];
 
-  const snap = await db.collection("users").doc(n).get();
-  if(snap.exists) return alert("Nome já existe");
+    if(!n||!y||!f) return alert("Preencha tudo");
+    if(new Date().getFullYear()-y < 9) return alert("Precisa 9+");
 
-  const ref = storage.ref("profiles/"+n);
-  await ref.put(f);
-  const url = await ref.getDownloadURL();
+    const userRef = db.collection("users").doc(n);
+    const snap = await userRef.get();
+    if(snap.exists) return alert("Nome já existe");
 
-  await db.collection("users").doc(n).set({name:n,year:y,bio:b,photo:url});
-  alert("Conta criada! Agora entre.");
+    const ref = storage.ref("profiles/" + n);
+    await ref.put(f);
+    const url = await ref.getDownloadURL();
+
+    const userData = { name:n, year:y, bio:b, photo:url };
+    await userRef.set(userData);
+
+    me = userData;
+    start();
+
+  } catch (e) {
+    alert("Erro cadastro: " + e.message);
+  }
 }
 
-// ---------- LOGIN ----------
+// LOGIN
 async function login(){
-  const n = loginName.value.trim();
-  const y = +loginYear.value;
+  try {
+    const n = loginName.value.trim();
+    const y = +loginYear.value;
 
-  const doc = await db.collection("users").doc(n).get();
-  if(!doc.exists || doc.data().year!==y) return alert("Erro login");
+    if(!n||!y) return alert("Preencha nome e ano");
 
-  me = doc.data();
-  start();
+    const doc = await db.collection("users").doc(n).get();
+    if(!doc.exists) return alert("Usuário não existe");
+
+    const data = doc.data();
+    if(data.year !== y) return alert("Ano errado");
+
+    me = data;
+    start();
+
+  } catch (e) {
+    alert("Erro login: " + e.message);
+  }
 }
 
-// ---------- START ----------
+// START
 function start(){
   loginBox.classList.add("hidden");
   registerBox.classList.add("hidden");
@@ -155,7 +173,7 @@ function start(){
   loadChat();
 }
 
-// ---------- POST ----------
+// POST
 async function post(){
   const text = postText.value;
   const file = postImage.files[0];
@@ -163,7 +181,7 @@ async function post(){
 
   let imageUrl = "";
   if(file){
-    const ref = storage.ref("posts/"+Date.now()+"-"+me.name);
+    const ref = storage.ref("posts/" + Date.now());
     await ref.put(file);
     imageUrl = await ref.getDownloadURL();
   }
@@ -175,26 +193,27 @@ async function post(){
     time: Date.now()
   });
 
-  postText.value="";
-  postImage.value="";
+  postText.value = "";
+  postImage.value = "";
   loadFeed();
 }
 
-// ---------- FEED ----------
+// FEED
 async function loadFeed(){
-  feed.innerHTML="";
+  feed.innerHTML = "";
   const snap = await db.collection("posts").orderBy("time","desc").get();
   snap.forEach(doc=>{
-    const p=doc.data();
+    const p = doc.data();
     feed.innerHTML += `
       <div class="post">
-        <b>${p.author}</b><br>${p.text||""}
+        <b>${p.author}</b><br>
+        ${p.text||""}<br>
         ${p.image?`<img src="${p.image}">`:""}
       </div>`;
   });
 }
 
-// ---------- CHAT ----------
+// CHAT
 async function sendChat(){
   if(!chatInput.value) return;
   await db.collection("chat").add({
