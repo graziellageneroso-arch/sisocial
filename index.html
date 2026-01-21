@@ -4,88 +4,56 @@
 <meta charset="UTF-8">
 <title>SiSocial</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
 
-<!-- Ícone embutido -->
 <link rel="icon" href="data:image/svg+xml;utf8,
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
-<rect width='100' height='100' rx='22' fill='black'/>
-<text x='50%' y='65%' text-anchor='middle' font-size='70' fill='lime' font-family='Arial'>S</text>
+<rect width='100' height='100' rx='20' fill='black'/>
+<text x='50%' y='65%' text-anchor='middle' font-size='65' fill='lime' font-family='Arial'>S</text>
 </svg>">
 
-<meta name="theme-color" content="#000">
-
 <style>
-body{margin:0;font-family:Arial;background:#111;color:#fff}
+body{margin:0;font-family:Arial;background:#0e0e0e;color:white}
+.card{background:#1a1a1a;margin:10px;padding:10px;border-radius:10px}
+input,textarea,button{width:100%;padding:8px;margin:5px 0;border-radius:6px;border:none}
+button{background:lime;color:black;font-weight:bold}
 .hidden{display:none}
-.box{background:#1c1c1c;padding:10px;margin:10px;border-radius:10px}
-input,textarea,button{width:100%;padding:8px;margin:4px 0;border-radius:6px;border:none}
-button{background:lime;color:#000;font-weight:bold}
-.post{border-top:1px solid #333;padding:8px}
-.post img{max-width:100%;border-radius:8px}
-.chatbox{height:150px;overflow:auto;background:#000;padding:8px;border-radius:8px}
-.profile{display:flex;gap:10px;align-items:center}
-.profile img{width:60px;height:60px;border-radius:50%;object-fit:cover}
-
-/* Splash */
-#splash{
-position:fixed;inset:0;background:#000;
-display:flex;align-items:center;justify-content:center;
-flex-direction:column;z-index:9999;
-animation:fadeout 1s ease 3s forwards;
-}
-#logo{font-size:80px;color:lime;animation:scale 1.5s ease;}
-#name{opacity:0;animation:show 1s ease 1.5s forwards;}
-@keyframes scale{from{transform:scale(0)}to{transform:scale(1)}}
-@keyframes show{to{opacity:1}}
-@keyframes fadeout{to{opacity:0;visibility:hidden}}
+img{max-width:100%;border-radius:10px}
+.chat{height:150px;overflow:auto;background:black;padding:5px;border-radius:8px}
 </style>
 </head>
 <body>
 
-<div id="splash">
-  <div id="logo">S</div>
-  <div id="name">SiSocial</div>
-</div>
+<div class="card" id="auth">
+  <h2>SiSocial</h2>
 
-<div id="loginBox" class="box">
-  <input id="loginName" placeholder="Nome">
-  <input id="loginYear" type="number" placeholder="Ano de nascimento">
+  <h4>Entrar</h4>
+  <input id="lName" placeholder="Nome">
+  <input id="lYear" type="number" placeholder="Ano de nascimento">
   <button onclick="login()">Entrar</button>
+
+  <h4>Criar conta</h4>
+  <input id="rName" placeholder="Nome">
+  <input id="rYear" type="number" placeholder="Ano nascimento">
+  <input id="rBio" placeholder="Bio">
+  <input id="rPhoto" type="file" accept="image/*">
+  <button onclick="register()">Cadastrar e entrar</button>
 </div>
 
-<div id="registerBox" class="box">
-  <input id="regName" placeholder="Nome">
-  <input id="regYear" type="number" placeholder="Ano nascimento">
-  <textarea id="regBio" placeholder="Bio"></textarea>
-  <input id="regPhoto" type="file" accept="image/*">
-  <button onclick="register()">Cadastrar</button>
-</div>
+<div class="card hidden" id="app">
+  <h3 id="userTitle"></h3>
 
-<div id="app" class="hidden">
+  <textarea id="postText" placeholder="Escreva algo"></textarea>
+  <input id="postImg" type="file" accept="image/*">
+  <button onclick="sendPost()">Postar</button>
 
-  <div class="box profile">
-    <img id="mePhoto">
-    <div><b id="meName"></b><br><small id="meBio"></small></div>
-  </div>
+  <h4>Feed</h4>
+  <div id="feed"></div>
 
-  <div class="box">
-    <textarea id="postText" placeholder="Texto"></textarea>
-    <input id="postImage" type="file" accept="image/*">
-    <button onclick="post()">Postar</button>
-  </div>
-
-  <div class="box">
-    <h3>Feed</h3>
-    <div id="feed"></div>
-  </div>
-
-  <div class="box">
-    <h3>Chat</h3>
-    <div id="chat" class="chatbox"></div>
-    <input id="chatInput" placeholder="Mensagem">
-    <button onclick="sendChat()">Enviar</button>
-  </div>
-
+  <h4>Chat</h4>
+  <div class="chat" id="chat"></div>
+  <input id="chatInput" placeholder="Mensagem">
+  <button onclick="sendChat()">Enviar</button>
 </div>
 
 <!-- Firebase -->
@@ -98,7 +66,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyClDT4Yl4nSOGLOR5sVXlnaf9pwnYjZHAw",
   authDomain: "sisocial.firebaseapp.com",
   projectId: "sisocial",
-  storageBucket: "sisocial.firebasestorage.app",
+  storageBucket: "sisocial.appspot.com",
   messagingSenderId: "25069295126",
   appId: "1:25069295126:web:b460d4ccbeb77e529b0737"
 };
@@ -107,129 +75,114 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
 
-let me = null;
+let currentUser = null;
 
-// CADASTRO (com login automático)
 async function register(){
-  try {
-    const n = regName.value.trim();
-    const y = +regYear.value;
-    const b = regBio.value.trim();
-    const f = regPhoto.files[0];
+  try{
+    const name = rName.value.trim();
+    const year = Number(rYear.value);
+    const bio = rBio.value.trim();
+    const file = rPhoto.files[0];
 
-    if(!n||!y||!f) return alert("Preencha tudo");
-    if(new Date().getFullYear()-y < 9) return alert("Precisa 9+");
+    if(!name || !year || !file) return alert("Preencha tudo");
+    if(new Date().getFullYear() - year < 9) return alert("Precisa ter 9+ anos");
 
-    const userRef = db.collection("users").doc(n);
-    const snap = await userRef.get();
-    if(snap.exists) return alert("Nome já existe");
+    const userRef = db.collection("users").doc(name);
+    if((await userRef.get()).exists) return alert("Nome já existe");
 
-    const ref = storage.ref("profiles/" + n);
-    await ref.put(f);
-    const url = await ref.getDownloadURL();
+    const imgRef = storage.ref("profiles/" + name + ".jpg");
+    await imgRef.put(file);
+    const photoURL = await imgRef.getDownloadURL();
 
-    const userData = { name:n, year:y, bio:b, photo:url };
-    await userRef.set(userData);
+    const data = {name, year, bio, photo: photoURL};
+    await userRef.set(data);
 
-    me = userData;
-    start();
-
-  } catch (e) {
-    alert("Erro cadastro: " + e.message);
+    currentUser = data;
+    openApp();
+  } catch(e){
+    alert("Erro no cadastro: " + e.message);
   }
 }
 
-// LOGIN
 async function login(){
-  try {
-    const n = loginName.value.trim();
-    const y = +loginYear.value;
+  try{
+    const name = lName.value.trim();
+    const year = Number(lYear.value);
 
-    if(!n||!y) return alert("Preencha nome e ano");
-
-    const doc = await db.collection("users").doc(n).get();
+    const doc = await db.collection("users").doc(name).get();
     if(!doc.exists) return alert("Usuário não existe");
 
     const data = doc.data();
-    if(data.year !== y) return alert("Ano errado");
+    if(data.year !== year) return alert("Ano errado");
 
-    me = data;
-    start();
-
-  } catch (e) {
+    currentUser = data;
+    openApp();
+  } catch(e){
     alert("Erro login: " + e.message);
   }
 }
 
-// START
-function start(){
-  loginBox.classList.add("hidden");
-  registerBox.classList.add("hidden");
+function openApp(){
+  auth.classList.add("hidden");
   app.classList.remove("hidden");
-  meName.innerText = me.name;
-  meBio.innerText = me.bio;
-  mePhoto.src = me.photo;
+  userTitle.innerText = "Olá, " + currentUser.name;
   loadFeed();
   loadChat();
 }
 
-// POST
-async function post(){
+async function sendPost(){
   const text = postText.value;
-  const file = postImage.files[0];
-  if(!text && !file) return;
+  const file = postImg.files[0];
+  let img = "";
 
-  let imageUrl = "";
   if(file){
-    const ref = storage.ref("posts/" + Date.now());
+    const ref = storage.ref("posts/" + Date.now() + ".jpg");
     await ref.put(file);
-    imageUrl = await ref.getDownloadURL();
+    img = await ref.getDownloadURL();
   }
 
   await db.collection("posts").add({
-    author: me.name,
+    user: currentUser.name,
     text,
-    image: imageUrl,
+    img,
     time: Date.now()
   });
 
   postText.value = "";
-  postImage.value = "";
+  postImg.value = "";
   loadFeed();
 }
 
-// FEED
 async function loadFeed(){
   feed.innerHTML = "";
   const snap = await db.collection("posts").orderBy("time","desc").get();
-  snap.forEach(doc=>{
-    const p = doc.data();
+  snap.forEach(d=>{
+    const p = d.data();
     feed.innerHTML += `
-      <div class="post">
-        <b>${p.author}</b><br>
-        ${p.text||""}<br>
-        ${p.image?`<img src="${p.image}">`:""}
+      <div class="card">
+        <b>${p.user}</b><br>
+        ${p.text || ""}
+        ${p.img ? `<img src="${p.img}">` : ""}
       </div>`;
   });
 }
 
-// CHAT
 async function sendChat(){
   if(!chatInput.value) return;
   await db.collection("chat").add({
-    user: me.name,
+    user: currentUser.name,
     text: chatInput.value,
     time: Date.now()
   });
-  chatInput.value="";
+  chatInput.value = "";
   loadChat();
 }
 
 async function loadChat(){
-  chat.innerHTML="";
+  chat.innerHTML = "";
   const snap = await db.collection("chat").orderBy("time").get();
   snap.forEach(d=>{
-    const m=d.data();
+    const m = d.data();
     chat.innerHTML += `${m.user}: ${m.text}<br>`;
   });
 }
