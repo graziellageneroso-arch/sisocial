@@ -5,12 +5,8 @@
 <title>SiSocial</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- 🔽 ADIÇÃO DO ÍCONE DO SITE (ÚNICA MUDANÇA) -->
-<link rel="icon" type="image/png" href="icon.png">
-<link rel="apple-touch-icon" href="icon.png">
-<!-- 🔼 FIM DA ADIÇÃO -->
-
 <style>
+/* ===== ESTILO GERAL ===== */
 body{
   margin:0;
   font-family:Arial, sans-serif;
@@ -38,14 +34,16 @@ button{
   border-radius:6px;
   font-weight:bold;
 }
-input,textarea{
+input, textarea{
   width:100%;
   padding:8px;
   margin:5px 0;
   border-radius:6px;
   border:none;
 }
-.box{padding:15px;}
+.box{
+  padding:15px;
+}
 .hidden{display:none;}
 .post{
   background:#1e1e1e;
@@ -53,27 +51,37 @@ input,textarea{
   padding:10px;
   border-radius:10px;
 }
-.post img,.post video{
+.post img, .post video{
   width:100%;
   border-radius:8px;
   margin-top:8px;
+}
+.actions{
+  display:flex;
+  gap:10px;
+  margin-top:5px;
 }
 .comment{
   background:#2a2a2a;
   padding:5px;
   border-radius:6px;
   margin-top:5px;
+  font-size:14px;
 }
 </style>
 </head>
 
 <body>
 
+<!-- ===== TOPO ===== -->
 <header id="topo" class="hidden">
-  <img id="fotoTopo" onclick="abrirPerfis()">
+  <div onclick="abrirPerfis()">
+    <img id="fotoTopo">
+  </div>
   <button onclick="logout()">Sair</button>
 </header>
 
+<!-- ===== LOGIN / CADASTRO ===== -->
 <div class="box" id="auth">
   <h2>Criar conta</h2>
   <input id="nome" placeholder="Nome">
@@ -88,15 +96,17 @@ input,textarea{
   <button onclick="entrar()">Entrar</button>
 </div>
 
+<!-- ===== PERFIS ===== -->
 <div class="box hidden" id="perfis">
   <h3>Perfis</h3>
   <div id="listaPerfis"></div>
   <button onclick="mostrarAuth()">Criar novo usuário</button>
 </div>
 
+<!-- ===== FEED ===== -->
 <div class="box hidden" id="feed">
-  <h3>Novo post</h3>
-  <textarea id="textoPost"></textarea>
+  <h3>Criar post</h3>
+  <textarea id="textoPost" placeholder="O que você está pensando?"></textarea>
   <input type="file" id="midiaPost" accept="image/*,video/*">
   <button onclick="criarPost()">Postar</button>
 
@@ -105,11 +115,147 @@ input,textarea{
 </div>
 
 <script>
-let usuarios=JSON.parse(localStorage.getItem("usuarios"))||[];
-let posts=JSON.parse(localStorage.getItem("posts"))||[];
-let usuarioAtual=null;
+/* ===== DADOS ===== */
+let usuarios = JSON.parse(localStorage.getItem("usuarios")) || [];
+let posts = JSON.parse(localStorage.getItem("posts")) || [];
+let usuarioAtual = null;
 
-/* todo o JS permanece IGUAL ao anterior */
+/* ===== CRIAR CONTA ===== */
+function criarConta(){
+  const nome = nome.value.trim();
+  const codigo = codigo.value.trim();
+  if(!nome || codigo.length !== 4) return alert("Dados inválidos");
+
+  if(usuarios.find(u => u.codigo === codigo))
+    return alert("Código já existe");
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    usuarios.push({nome,codigo,foto:reader.result});
+    localStorage.setItem("usuarios",JSON.stringify(usuarios));
+    alert("Conta criada!");
+  };
+  foto.files[0] ? reader.readAsDataURL(foto.files[0]) : reader.onload();
+}
+
+/* ===== ENTRAR ===== */
+function entrar(){
+  const cod = codigoLogin.value.trim();
+  const user = usuarios.find(u => u.codigo === cod);
+  if(!user) return alert("Usuário não encontrado");
+
+  usuarioAtual = user;
+  iniciarApp();
+}
+
+/* ===== INICIAR APP ===== */
+function iniciarApp(){
+  auth.classList.add("hidden");
+  perfis.classList.add("hidden");
+  feed.classList.remove("hidden");
+  topo.classList.remove("hidden");
+  fotoTopo.src = usuarioAtual.foto || "";
+  renderPosts();
+}
+
+/* ===== LOGOUT ===== */
+function logout(){
+  usuarioAtual = null;
+  feed.classList.add("hidden");
+  topo.classList.add("hidden");
+  auth.classList.remove("hidden");
+}
+
+/* ===== PERFIS ===== */
+function abrirPerfis(){
+  feed.classList.add("hidden");
+  perfis.classList.remove("hidden");
+  listaPerfis.innerHTML="";
+  usuarios.forEach(u=>{
+    const b=document.createElement("button");
+    b.textContent=u.nome;
+    b.onclick=()=>{usuarioAtual=u;iniciarApp();}
+    listaPerfis.appendChild(b);
+  });
+}
+function mostrarAuth(){
+  perfis.classList.add("hidden");
+  auth.classList.remove("hidden");
+}
+
+/* ===== POSTS ===== */
+function criarPost(){
+  const texto = textoPost.value.trim();
+  if(!texto && !midiaPost.files[0]) return;
+
+  const reader=new FileReader();
+  reader.onload=()=>{
+    posts.unshift({
+      id:Date.now(),
+      autor:usuarioAtual.codigo,
+      nome:usuarioAtual.nome,
+      texto,
+      midia:reader.result,
+      tipo:midiaPost.files[0]?.type || "",
+      likes:[],
+      comentarios:[]
+    });
+    localStorage.setItem("posts",JSON.stringify(posts));
+    textoPost.value="";
+    midiaPost.value="";
+    renderPosts();
+  };
+  midiaPost.files[0] ? reader.readAsDataURL(midiaPost.files[0]) : reader.onload();
+}
+
+/* ===== RENDER FEED ===== */
+function renderPosts(){
+  postsDiv = document.getElementById("posts");
+  postsDiv.innerHTML="";
+  posts.forEach(p=>{
+    const d=document.createElement("div");
+    d.className="post";
+    d.innerHTML=`<b>${p.nome}</b><p>${p.texto||""}</p>`;
+
+    if(p.midia){
+      if(p.tipo.startsWith("video"))
+        d.innerHTML+=`<video src="${p.midia}" muted autoplay loop></video>`;
+      else
+        d.innerHTML+=`<img src="${p.midia}">`;
+    }
+
+    const likeBtn=document.createElement("button");
+    likeBtn.textContent="❤️ "+p.likes.length;
+    likeBtn.onclick=()=>{
+      const i=p.likes.indexOf(usuarioAtual.codigo);
+      i>=0?p.likes.splice(i,1):p.likes.push(usuarioAtual.codigo);
+      salvar();
+    };
+
+    const cInput=document.createElement("input");
+    cInput.placeholder="Comentar";
+    cInput.onkeydown=e=>{
+      if(e.key==="Enter"){
+        p.comentarios.push({nome:usuarioAtual.nome,txt:cInput.value});
+        salvar();
+      }
+    };
+
+    d.appendChild(likeBtn);
+    p.comentarios.forEach(c=>{
+      const cc=document.createElement("div");
+      cc.className="comment";
+      cc.textContent=c.nome+": "+c.txt;
+      d.appendChild(cc);
+    });
+    d.appendChild(cInput);
+    postsDiv.appendChild(d);
+  });
+}
+function salvar(){
+  localStorage.setItem("posts",JSON.stringify(posts));
+  renderPosts();
+}
 </script>
 
 </body>
