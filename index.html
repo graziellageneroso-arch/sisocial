@@ -3,203 +3,128 @@
 <head>
 <meta charset="UTF-8">
 <title>SiSocial</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#000000">
-
-<link rel="icon" href="data:image/svg+xml;utf8,
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
-<rect width='100' height='100' rx='20' fill='black'/>
-<text x='50%' y='65%' text-anchor='middle' font-size='60' fill='lime' font-family='Arial'>S</text>
-</svg>">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-body{margin:0;font-family:Arial;background:#0b0b0b;color:#fff}
-.box{background:#151515;margin:10px;padding:12px;border-radius:12px}
-input,textarea,button{width:100%;padding:8px;margin:5px 0;border-radius:6px;border:none}
-button{background:lime;color:black;font-weight:bold}
-.hidden{display:none}
-img{max-width:100%;border-radius:10px;margin-top:5px}
-.chat{height:180px;overflow:auto;background:#000;padding:6px;border-radius:8px}
+body{
+  font-family: Arial, sans-serif;
+  background:#111;
+  color:#fff;
+  text-align:center;
+  padding:20px;
+}
+.box{
+  background:#1e1e1e;
+  padding:20px;
+  border-radius:10px;
+  max-width:320px;
+  margin:auto;
+}
+input, button{
+  width:100%;
+  padding:10px;
+  margin:8px 0;
+  border:none;
+  border-radius:6px;
+}
+button{
+  background:#4caf50;
+  color:#fff;
+  font-weight:bold;
+}
+img{
+  width:80px;
+  height:80px;
+  border-radius:50%;
+  object-fit:cover;
+  margin:10px 0;
+}
+.hidden{ display:none; }
 </style>
 </head>
+
 <body>
 
-<div class="box" id="auth">
-  <h2>SiSocial</h2>
-
-  <h4>Entrar</h4>
-  <input id="lName" placeholder="Nome">
-  <input id="lYear" type="number" placeholder="Ano de nascimento">
-  <button onclick="login()">Entrar</button>
-
-  <h4>Criar conta</h4>
-  <input id="rName" placeholder="Nome">
-  <input id="rYear" type="number" placeholder="Ano nascimento">
-  <input id="rBio" placeholder="Bio">
-  <input id="rPhoto" type="file" accept="image/*">
-  <button onclick="register()">Cadastrar e entrar</button>
+<div class="box" id="cadastro">
+  <h2>Criar conta</h2>
+  <input id="nome" placeholder="Seu nome">
+  <input id="codigo" placeholder="Código de 4 dígitos" maxlength="4">
+  <input type="file" id="foto" accept="image/*">
+  <button onclick="criarConta()">Criar conta</button>
 </div>
 
-<div class="box hidden" id="app">
-  <h3 id="userTitle"></h3>
-
-  <textarea id="postText" placeholder="Escreva algo"></textarea>
-  <input id="postImg" type="file" accept="image/*">
-  <button onclick="sendPost()">Postar</button>
-
-  <h4>Feed</h4>
-  <div id="feed"></div>
-
-  <h4>Chat</h4>
-  <div class="chat" id="chat"></div>
-  <input id="chatInput" placeholder="Mensagem">
-  <button onclick="sendChat()">Enviar</button>
+<div class="box hidden" id="login">
+  <h2>Entrar</h2>
+  <input id="codigoLogin" placeholder="Código de 4 dígitos" maxlength="4">
+  <button onclick="entrar()">Entrar</button>
 </div>
 
-<!-- Firebase compat (funciona em HTML simples) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<div class="box hidden" id="perfil">
+  <h2>Perfil</h2>
+  <img id="fotoPerfil">
+  <p id="nomePerfil"></p>
+  <button onclick="logout()">Sair</button>
+</div>
 
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyClDT4Yl4nSOGLOR5sVXlnaf9pwnYjZHAw",
-  authDomain: "sisocial.firebaseapp.com",
-  projectId: "sisocial",
-  storageBucket: "sisocial.appspot.com",
-  messagingSenderId: "25069295126",
-  appId: "1:25069295126:web:bbe29b7b69843db29b0737"
-};
+let usuarios = JSON.parse(localStorage.getItem("usuarios")) || [];
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const storage = firebase.storage();
+function criarConta(){
+  const nome = document.getElementById("nome").value.trim();
+  const codigo = document.getElementById("codigo").value.trim();
+  const fotoInput = document.getElementById("foto");
 
-db.enableNetwork().catch(()=>{});
-
-let currentUser = null;
-
-// -------- CADASTRO --------
-async function register(){
-  try{
-    const name = rName.value.trim();
-    const year = Number(rYear.value);
-    const bio = rBio.value.trim();
-    const file = rPhoto.files[0];
-
-    if(!name || !year || !file) return alert("Preencha tudo");
-    if(new Date().getFullYear() - year < 9) return alert("Precisa ter 9+ anos");
-
-    const ref = db.collection("users").doc(name);
-    if((await ref.get()).exists) return alert("Nome já existe");
-
-    const imgRef = storage.ref("profiles/" + name + ".jpg");
-    await imgRef.put(file);
-    const photo = await imgRef.getDownloadURL();
-
-    const data = {name, year, bio, photo};
-    await ref.set(data);
-
-    currentUser = data;
-    openApp();
-  }catch(e){
-    alert("Erro no cadastro: " + e.message);
+  if(nome === "" || codigo.length !== 4){
+    alert("Preencha tudo corretamente");
+    return;
   }
-}
 
-// -------- LOGIN --------
-async function login(){
-  try{
-    const name = lName.value.trim();
-    const year = Number(lYear.value);
-
-    const doc = await db.collection("users").doc(name).get();
-    if(!doc.exists) return alert("Usuário não existe");
-
-    const data = doc.data();
-    if(data.year !== year) return alert("Ano errado");
-
-    currentUser = data;
-    openApp();
-  }catch(e){
-    alert("Erro no login: " + e.message);
+  if(usuarios.find(u => u.codigo === codigo)){
+    alert("Esse código já existe");
+    return;
   }
-}
 
-// -------- APP --------
-function openApp(){
-  auth.classList.add("hidden");
-  app.classList.remove("hidden");
-  userTitle.innerText = "Olá, " + currentUser.name;
-  loadFeed();
-  loadChat();
-}
-
-// -------- POST --------
-async function sendPost(){
-  try{
-    const text = postText.value;
-    const file = postImg.files[0];
-    let img = "";
-
-    if(file){
-      const ref = storage.ref("posts/" + Date.now() + ".jpg");
-      await ref.put(file);
-      img = await ref.getDownloadURL();
-    }
-
-    if(!text && !img) return;
-
-    await db.collection("posts").add({
-      user: currentUser.name,
-      text,
-      img,
-      time: Date.now()
+  const reader = new FileReader();
+  reader.onload = function(){
+    usuarios.push({
+      nome,
+      codigo, // sempre string
+      foto: reader.result
     });
+    localStorage.setItem("usuarios", JSON.stringify(usuarios));
+    alert("Conta criada!");
+    document.getElementById("cadastro").classList.add("hidden");
+    document.getElementById("login").classList.remove("hidden");
+  };
 
-    postText.value = "";
-    postImg.value = "";
-    loadFeed();
-  }catch(e){
-    alert("Erro ao postar: " + e.message);
+  if(fotoInput.files[0]){
+    reader.readAsDataURL(fotoInput.files[0]);
+  }else{
+    reader.onload();
   }
 }
 
-// -------- FEED --------
-async function loadFeed(){
-  feed.innerHTML = "";
-  const snap = await db.collection("posts").orderBy("time","desc").get();
-  snap.forEach(d=>{
-    const p = d.data();
-    feed.innerHTML += `
-      <div class="box">
-        <b>${p.user}</b><br>
-        ${p.text || ""}
-        ${p.img ? `<img src="${p.img}">` : ""}
-      </div>`;
-  });
+function entrar(){
+  const codigo = document.getElementById("codigoLogin").value.trim();
+  const user = usuarios.find(u => u.codigo === codigo);
+
+  if(!user){
+    alert("Código inválido");
+    return;
+  }
+
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("perfil").classList.remove("hidden");
+  document.getElementById("nomePerfil").innerText = user.nome;
+  document.getElementById("fotoPerfil").src = user.foto || "";
 }
 
-// -------- CHAT --------
-async function sendChat(){
-  if(!chatInput.value) return;
-  await db.collection("chat").add({
-    user: currentUser.name,
-    text: chatInput.value,
-    time: Date.now()
-  });
-  chatInput.value = "";
-  loadChat();
+function logout(){
+  document.getElementById("perfil").classList.add("hidden");
+  document.getElementById("login").classList.remove("hidden");
 }
 
-async function loadChat(){
-  chat.innerHTML = "";
-  const snap = await db.collection("chat").orderBy("time").get();
-  snap.forEach(d=>{
-    const m = d.data();
-    chat.innerHTML += `${m.user}: ${m.text}<br>`;
-  });
-}
 </script>
+
 </body>
 </html>
