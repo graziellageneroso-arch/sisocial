@@ -6,191 +6,150 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-body{margin:0;font-family:Arial;background:#111;color:#fff;}
-header{
+body{
+  font-family: Arial, sans-serif;
+  background:#111;
+  color:#fff;
+  text-align:center;
+  padding:20px;
+}
+.box{
   background:#1e1e1e;
+  padding:20px;
+  border-radius:10px;
+  max-width:320px;
+  margin:auto;
+}
+input, button{
+  width:100%;
   padding:10px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
+  margin:8px 0;
+  border:none;
+  border-radius:6px;
 }
-header img{
-  width:40px;height:40px;border-radius:50%;cursor:pointer;
+button{
+  background:#4caf50;
+  color:#fff;
+  font-weight:bold;
 }
-.menu{
-  position:absolute;right:10px;top:60px;
-  background:#2a2a2a;border-radius:8px;
-  display:none;min-width:200px;
+.secondary{
+  background:#2196f3;
 }
-.menu button{
-  background:none;border:none;color:#fff;
-  width:100%;padding:10px;text-align:left;
+img{
+  width:80px;
+  height:80px;
+  border-radius:50%;
+  object-fit:cover;
+  margin:10px 0;
 }
-.box{padding:15px;}
-textarea,input,button{
-  width:100%;padding:10px;margin:6px 0;
-  border:none;border-radius:6px;
-}
-button{background:#4caf50;color:#fff;font-weight:bold;}
-.post{
-  background:#1e1e1e;padding:10px;border-radius:8px;margin-bottom:10px;
-}
-.actions span{margin-right:15px;cursor:pointer;}
-.hidden{display:none;}
-.userItem{padding:8px;border-bottom:1px solid #444;cursor:pointer;}
+.hidden{ display:none; }
 </style>
 </head>
 
 <body>
 
-<header class="hidden" id="topo">
-  <div>SiSocial</div>
-  <img id="fotoTopo" onclick="toggleMenu()">
-</header>
-
-<div class="menu" id="menu">
-  <button id="userAtual"></button>
-  <button onclick="verMeusPosts()">📌 Ver meus posts</button>
-  <button onclick="abrirUsuarios()">👥 Tela de usuários</button>
-  <hr>
-  <button onclick="logout()">🚪 Sair</button>
+<!-- TELA INICIAL -->
+<div class="box" id="inicio">
+  <h2>SiSocial</h2>
+  <button onclick="mostrarLogin()">Entrar</button>
+  <button class="secondary" onclick="mostrarCadastro()">Criar conta</button>
 </div>
 
-<div class="box" id="loginBox">
-  <h3>Entrar</h3>
-  <input id="codigoLogin" placeholder="Código de 4 dígitos" maxlength="4">
-  <button onclick="login()">Entrar</button>
+<!-- CADASTRO -->
+<div class="box hidden" id="cadastro">
+  <h2>Criar conta</h2>
+  <input id="nome" placeholder="Seu nome">
+  <input id="codigo" placeholder="Código de 4 dígitos" maxlength="4" inputmode="numeric">
+  <input type="file" id="foto" accept="image/*">
+  <button onclick="criarConta()">Criar conta</button>
+  <button onclick="voltar()">Voltar</button>
 </div>
 
-<div class="box hidden" id="novoUsuarioBox">
-  <h3>Criar novo usuário</h3>
-  <input id="nome">
-  <input id="codigo" maxlength="4">
-  <input type="file" id="foto">
-  <button onclick="criarUsuario()">Criar</button>
+<!-- LOGIN -->
+<div class="box hidden" id="login">
+  <h2>Entrar</h2>
+  <input id="codigoLogin" placeholder="Código de 4 dígitos" maxlength="4" inputmode="numeric">
+  <button onclick="entrar()">Entrar</button>
+  <button onclick="voltar()">Voltar</button>
 </div>
 
-<div class="box hidden" id="usuariosBox">
-  <h3>Usuários</h3>
-  <div id="listaUsuarios"></div>
-  <button onclick="abrirNovoUsuario()">➕ Criar novo usuário</button>
-</div>
-
-<div class="box hidden" id="app">
-  <textarea id="textoPost" placeholder="O que você está pensando?"></textarea>
-  <button onclick="postar()">Postar</button>
-  <div id="feed"></div>
+<!-- PERFIL -->
+<div class="box hidden" id="perfil">
+  <h2>Perfil</h2>
+  <img id="fotoPerfil">
+  <p id="nomePerfil"></p>
+  <button onclick="logout()">Sair</button>
 </div>
 
 <script>
 let usuarios = JSON.parse(localStorage.getItem("usuarios")) || [];
-let posts = JSON.parse(localStorage.getItem("posts")) || [];
-let usuarioAtivo = JSON.parse(localStorage.getItem("usuarioAtivo"));
-let modoMeusPosts = false;
 
-if(usuarioAtivo) iniciarApp();
-
-function login(){
-  const u = usuarios.find(u=>u.codigo===codigoLogin.value);
-  if(!u) return alert("Usuário não encontrado");
-  usuarioAtivo=u;
-  localStorage.setItem("usuarioAtivo",JSON.stringify(u));
-  iniciarApp();
+function esconderTudo(){
+  document.querySelectorAll(".box").forEach(b => b.classList.add("hidden"));
 }
 
-function criarUsuario(){
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const novo={nome:nome.value,codigo:codigo.value,foto:reader.result};
-    usuarios.push(novo);
-    localStorage.setItem("usuarios",JSON.stringify(usuarios));
-    usuarioAtivo=novo;
-    localStorage.setItem("usuarioAtivo",JSON.stringify(novo));
-    iniciarApp();
+function mostrarCadastro(){
+  esconderTudo();
+  document.getElementById("cadastro").classList.remove("hidden");
+}
+
+function mostrarLogin(){
+  esconderTudo();
+  document.getElementById("login").classList.remove("hidden");
+}
+
+function voltar(){
+  esconderTudo();
+  document.getElementById("inicio").classList.remove("hidden");
+}
+
+function criarConta(){
+  const nome = document.getElementById("nome").value.trim();
+  const codigo = document.getElementById("codigo").value.trim();
+  const fotoInput = document.getElementById("foto");
+
+  if(nome === "" || codigo.length !== 4){
+    alert("Preencha tudo corretamente");
+    return;
+  }
+
+  if(usuarios.find(u => u.codigo === codigo)){
+    alert("Esse código já existe");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(){
+    usuarios.push({ nome, codigo, foto: reader.result });
+    localStorage.setItem("usuarios", JSON.stringify(usuarios));
+    alert("Conta criada!");
+    mostrarLogin();
   };
-  reader.readAsDataURL(foto.files[0]);
+
+  if(fotoInput.files[0]){
+    reader.readAsDataURL(fotoInput.files[0]);
+  }else{
+    reader.onload();
+  }
 }
 
-function iniciarApp(){
-  loginBox.classList.add("hidden");
-  novoUsuarioBox.classList.add("hidden");
-  usuariosBox.classList.add("hidden");
-  app.classList.remove("hidden");
-  topo.classList.remove("hidden");
-  fotoTopo.src=usuarioAtivo.foto;
-  userAtual.innerText="👤 "+usuarioAtivo.nome;
-  renderFeed();
-}
+function entrar(){
+  const codigo = document.getElementById("codigoLogin").value.trim();
+  const user = usuarios.find(u => u.codigo === codigo);
 
-function postar(){
-  if(!textoPost.value.trim())return;
-  posts.unshift({
-    autor:usuarioAtivo.nome,
-    codigo:usuarioAtivo.codigo,
-    texto:textoPost.value,
-    likes:0
-  });
-  localStorage.setItem("posts",JSON.stringify(posts));
-  textoPost.value="";
-  renderFeed();
-}
+  if(!user){
+    alert("Conta não encontrada");
+    return;
+  }
 
-function renderFeed(){
-  feed.innerHTML="";
-  posts.filter(p=>!modoMeusPosts||p.codigo===usuarioAtivo.codigo)
-  .forEach((p,i)=>{
-    feed.innerHTML+=`
-      <div class="post">
-        <b>${p.autor}</b>
-        <p>${p.texto}</p>
-        <div class="actions">
-          <span onclick="like(${i})">❤️ ${p.likes}</span>
-        </div>
-      </div>`;
-  });
-}
-
-function like(i){
-  posts[i].likes++;
-  localStorage.setItem("posts",JSON.stringify(posts));
-  renderFeed();
-}
-
-function verMeusPosts(){
-  modoMeusPosts=true;
-  renderFeed();
-}
-
-function abrirUsuarios(){
-  app.classList.add("hidden");
-  usuariosBox.classList.remove("hidden");
-  listaUsuarios.innerHTML="";
-  usuarios.forEach(u=>{
-    listaUsuarios.innerHTML+=`
-      <div class="userItem" onclick="trocarUsuario('${u.codigo}')">
-        ${u.nome}
-      </div>`;
-  });
-}
-
-function trocarUsuario(c){
-  usuarioAtivo=usuarios.find(u=>u.codigo===c);
-  localStorage.setItem("usuarioAtivo",JSON.stringify(usuarioAtivo));
-  iniciarApp();
-}
-
-function abrirNovoUsuario(){
-  usuariosBox.classList.add("hidden");
-  novoUsuarioBox.classList.remove("hidden");
+  esconderTudo();
+  document.getElementById("perfil").classList.remove("hidden");
+  document.getElementById("nomePerfil").innerText = user.nome;
+  document.getElementById("fotoPerfil").src = user.foto || "";
 }
 
 function logout(){
-  localStorage.removeItem("usuarioAtivo");
-  location.reload();
-}
-
-function toggleMenu(){
-  menu.style.display=menu.style.display==="block"?"none":"block";
+  voltar();
 }
 </script>
 
