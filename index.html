@@ -46,30 +46,36 @@ img{
   text-align:left;
 }
 .hidden{ display:none; }
-.like{
-  cursor:pointer;
-  color:#4caf50;
-  font-weight:bold;
-}
+.like{ cursor:pointer; color:#4caf50; }
 </style>
 </head>
 
 <body>
 
-<div class="box" id="cadastro">
-  <h2>Criar conta</h2>
+<!-- TELA INICIAL -->
+<div class="box" id="inicio">
+  <h2>SiSocial</h2>
+  <button onclick="mostrarLogin()">Entrar</button>
+  <button onclick="mostrarCadastro()">Criar conta</button>
+</div>
+
+<!-- CADASTRO -->
+<div class="box hidden" id="cadastro">
+  <h3>Criar conta</h3>
   <input id="nome" placeholder="Seu nome">
   <input id="codigo" placeholder="Código de 4 dígitos" maxlength="4" inputmode="numeric">
   <input type="file" id="foto" accept="image/*">
-  <button onclick="criarConta()">Criar conta</button>
+  <button onclick="criarConta()">Criar</button>
 </div>
 
+<!-- LOGIN -->
 <div class="box hidden" id="login">
-  <h2>Entrar</h2>
+  <h3>Entrar</h3>
   <input id="codigoLogin" placeholder="Código de 4 dígitos" maxlength="4" inputmode="numeric">
   <button onclick="entrar()">Entrar</button>
 </div>
 
+<!-- PERFIL -->
 <div class="box hidden" id="perfil">
   <img id="fotoPerfil">
   <h3 id="nomePerfil"></h3>
@@ -77,6 +83,7 @@ img{
   <button onclick="criarPost()">Postar</button>
 </div>
 
+<!-- FEED -->
 <div class="box hidden" id="feed">
   <h3>Feed</h3>
   <div id="posts"></div>
@@ -87,13 +94,24 @@ let usuarios = JSON.parse(localStorage.getItem("usuarios")) || [];
 let posts = JSON.parse(localStorage.getItem("posts")) || [];
 let usuarioLogado = null;
 
+// Navegação
+function mostrarLogin(){
+  inicio.classList.add("hidden");
+  login.classList.remove("hidden");
+}
+function mostrarCadastro(){
+  inicio.classList.add("hidden");
+  cadastro.classList.remove("hidden");
+}
+
+// Criar conta
 function criarConta(){
   const nome = nomeInput.value.trim();
   const codigo = codigoInput.value.trim();
   if(nome === "" || codigo.length !== 4) return alert("Dados inválidos");
 
   if(usuarios.find(u => u.codigo === codigo))
-    return alert("Código já existe");
+    return alert("Esse código já existe");
 
   const reader = new FileReader();
   reader.onload = () => {
@@ -105,10 +123,11 @@ function criarConta(){
   foto.files[0] ? reader.readAsDataURL(foto.files[0]) : reader.onload();
 }
 
+// Entrar
 function entrar(){
   const codigo = codigoLogin.value.trim();
   usuarioLogado = usuarios.find(u => u.codigo === codigo);
-  if(!usuarioLogado) return alert("Código inválido");
+  if(!usuarioLogado) return alert("Conta não encontrada");
 
   login.classList.add("hidden");
   perfil.classList.remove("hidden");
@@ -120,6 +139,7 @@ function entrar(){
   renderFeed();
 }
 
+// Postar
 function criarPost(){
   if(textoPost.value.trim() === "") return;
   posts.unshift({
@@ -133,12 +153,14 @@ function criarPost(){
   renderFeed();
 }
 
-function curtir(index){
-  posts[index].likes++;
+// Curtir
+function curtir(i){
+  posts[i].likes++;
   localStorage.setItem("posts", JSON.stringify(posts));
   renderFeed();
 }
 
+// Feed
 function renderFeed(){
   postsDiv.innerHTML = "";
   posts.forEach((p, i) => {
@@ -153,14 +175,17 @@ function renderFeed(){
   });
 }
 
-const nomeInput = document.getElementById("nome");
-const codigoInput = document.getElementById("codigo");
-const foto = document.getElementById("foto");
+// Elementos
+const inicio = document.getElementById("inicio");
 const cadastro = document.getElementById("cadastro");
 const login = document.getElementById("login");
 const perfil = document.getElementById("perfil");
 const feed = document.getElementById("feed");
 const postsDiv = document.getElementById("posts");
+const nomeInput = document.getElementById("nome");
+const codigoInput = document.getElementById("codigo");
+const codigoLogin = document.getElementById("codigoLogin");
+const foto = document.getElementById("foto");
 const textoPost = document.getElementById("textoPost");
 </script>
 
