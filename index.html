@@ -15,12 +15,12 @@ body{
 }
 .box{
   background:#1e1e1e;
-  padding:20px;
+  padding:15px;
   border-radius:10px;
-  max-width:320px;
-  margin:auto;
+  max-width:360px;
+  margin:15px auto;
 }
-input, button{
+input, textarea, button{
   width:100%;
   padding:10px;
   margin:8px 0;
@@ -33,13 +33,24 @@ button{
   font-weight:bold;
 }
 img{
-  width:80px;
-  height:80px;
+  width:60px;
+  height:60px;
   border-radius:50%;
   object-fit:cover;
-  margin:10px 0;
+}
+.post{
+  background:#2a2a2a;
+  padding:10px;
+  border-radius:8px;
+  margin-top:10px;
+  text-align:left;
 }
 .hidden{ display:none; }
+.like{
+  cursor:pointer;
+  color:#4caf50;
+  font-weight:bold;
+}
 </style>
 </head>
 
@@ -48,82 +59,109 @@ img{
 <div class="box" id="cadastro">
   <h2>Criar conta</h2>
   <input id="nome" placeholder="Seu nome">
-  <input id="codigo" placeholder="Código de 4 dígitos" maxlength="4">
+  <input id="codigo" placeholder="Código de 4 dígitos" maxlength="4" inputmode="numeric">
   <input type="file" id="foto" accept="image/*">
   <button onclick="criarConta()">Criar conta</button>
 </div>
 
 <div class="box hidden" id="login">
   <h2>Entrar</h2>
-  <input id="codigoLogin" placeholder="Código de 4 dígitos" maxlength="4">
+  <input id="codigoLogin" placeholder="Código de 4 dígitos" maxlength="4" inputmode="numeric">
   <button onclick="entrar()">Entrar</button>
 </div>
 
 <div class="box hidden" id="perfil">
-  <h2>Perfil</h2>
   <img id="fotoPerfil">
-  <p id="nomePerfil"></p>
-  <button onclick="logout()">Sair</button>
+  <h3 id="nomePerfil"></h3>
+  <textarea id="textoPost" placeholder="O que você está pensando?"></textarea>
+  <button onclick="criarPost()">Postar</button>
+</div>
+
+<div class="box hidden" id="feed">
+  <h3>Feed</h3>
+  <div id="posts"></div>
 </div>
 
 <script>
 let usuarios = JSON.parse(localStorage.getItem("usuarios")) || [];
+let posts = JSON.parse(localStorage.getItem("posts")) || [];
+let usuarioLogado = null;
 
 function criarConta(){
-  const nome = document.getElementById("nome").value.trim();
-  const codigo = document.getElementById("codigo").value.trim();
-  const fotoInput = document.getElementById("foto");
+  const nome = nomeInput.value.trim();
+  const codigo = codigoInput.value.trim();
+  if(nome === "" || codigo.length !== 4) return alert("Dados inválidos");
 
-  if(nome === "" || codigo.length !== 4){
-    alert("Preencha tudo corretamente");
-    return;
-  }
-
-  if(usuarios.find(u => u.codigo === codigo)){
-    alert("Esse código já existe");
-    return;
-  }
+  if(usuarios.find(u => u.codigo === codigo))
+    return alert("Código já existe");
 
   const reader = new FileReader();
-  reader.onload = function(){
-    usuarios.push({
-      nome,
-      codigo, // sempre string
-      foto: reader.result
-    });
+  reader.onload = () => {
+    usuarios.push({ nome, codigo, foto: reader.result });
     localStorage.setItem("usuarios", JSON.stringify(usuarios));
-    alert("Conta criada!");
-    document.getElementById("cadastro").classList.add("hidden");
-    document.getElementById("login").classList.remove("hidden");
+    cadastro.classList.add("hidden");
+    login.classList.remove("hidden");
   };
-
-  if(fotoInput.files[0]){
-    reader.readAsDataURL(fotoInput.files[0]);
-  }else{
-    reader.onload();
-  }
+  foto.files[0] ? reader.readAsDataURL(foto.files[0]) : reader.onload();
 }
 
 function entrar(){
-  const codigo = document.getElementById("codigoLogin").value.trim();
-  const user = usuarios.find(u => u.codigo === codigo);
+  const codigo = codigoLogin.value.trim();
+  usuarioLogado = usuarios.find(u => u.codigo === codigo);
+  if(!usuarioLogado) return alert("Código inválido");
 
-  if(!user){
-    alert("Código inválido");
-    return;
-  }
+  login.classList.add("hidden");
+  perfil.classList.remove("hidden");
+  feed.classList.remove("hidden");
 
-  document.getElementById("login").classList.add("hidden");
-  document.getElementById("perfil").classList.remove("hidden");
-  document.getElementById("nomePerfil").innerText = user.nome;
-  document.getElementById("fotoPerfil").src = user.foto || "";
+  nomePerfil.innerText = usuarioLogado.nome;
+  fotoPerfil.src = usuarioLogado.foto || "";
+
+  renderFeed();
 }
 
-function logout(){
-  document.getElementById("perfil").classList.add("hidden");
-  document.getElementById("login").classList.remove("hidden");
+function criarPost(){
+  if(textoPost.value.trim() === "") return;
+  posts.unshift({
+    autor: usuarioLogado.nome,
+    foto: usuarioLogado.foto,
+    texto: textoPost.value,
+    likes: 0
+  });
+  localStorage.setItem("posts", JSON.stringify(posts));
+  textoPost.value = "";
+  renderFeed();
 }
 
+function curtir(index){
+  posts[index].likes++;
+  localStorage.setItem("posts", JSON.stringify(posts));
+  renderFeed();
+}
+
+function renderFeed(){
+  postsDiv.innerHTML = "";
+  posts.forEach((p, i) => {
+    postsDiv.innerHTML += `
+      <div class="post">
+        <img src="${p.foto}">
+        <b>${p.autor}</b>
+        <p>${p.texto}</p>
+        <span class="like" onclick="curtir(${i})">❤️ ${p.likes}</span>
+      </div>
+    `;
+  });
+}
+
+const nomeInput = document.getElementById("nome");
+const codigoInput = document.getElementById("codigo");
+const foto = document.getElementById("foto");
+const cadastro = document.getElementById("cadastro");
+const login = document.getElementById("login");
+const perfil = document.getElementById("perfil");
+const feed = document.getElementById("feed");
+const postsDiv = document.getElementById("posts");
+const textoPost = document.getElementById("textoPost");
 </script>
 
 </body>
