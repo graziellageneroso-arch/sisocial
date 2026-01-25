@@ -2,13 +2,12 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Mini Social</title>
+<title>SiSocial</title>
 
-<!-- ÍCONE EMBUTIDO -->
-<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...COLEI_AQUI_O_BASE64_COMPLETO...">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <style>
 body{margin:0;font-family:Arial;background:#111;color:#fff}
 header{padding:10px;background:#222;text-align:center}
@@ -24,11 +23,12 @@ button{cursor:pointer}
 
 <body>
 <header>
-<h2>Mini Social</h2>
+<h2>SiSocial</h2>
 </header>
 
 <div id="app">
 
+<!-- LOGIN / CADASTRO -->
 <div id="auth">
 <input id="user" placeholder="Usuário">
 <input id="pass" type="password" placeholder="Senha">
@@ -36,6 +36,7 @@ button{cursor:pointer}
 <button onclick="entrar()">Entrar</button>
 </div>
 
+<!-- APP -->
 <div id="social" style="display:none">
 <p>Logado como: <b id="logado"></b></p>
 <button onclick="sair()">Sair</button>
@@ -51,10 +52,12 @@ button{cursor:pointer}
 </div>
 
 <script>
+// ===== DADOS =====
 let usuarios=JSON.parse(localStorage.getItem("usuarios"))||[];
 let posts=JSON.parse(localStorage.getItem("posts"))||[];
 let atual=JSON.parse(localStorage.getItem("atual"))||null;
 
+// ===== AUTENTICAÇÃO =====
 function criarConta(){
 let u=user.value.trim(),p=pass.value;
 if(!u||!p)return alert("Preencha tudo");
@@ -80,6 +83,7 @@ localStorage.removeItem("atual");
 location.reload();
 }
 
+// ===== POSTS =====
 function postar(){
 let t=postText.value.trim();
 if(!t)return;
@@ -101,6 +105,7 @@ posts[i].comments.push({user:atual,text:c});
 salvar();
 }
 
+// ===== RENDER =====
 function salvar(){
 localStorage.setItem("posts",JSON.stringify(posts));
 render();
@@ -122,6 +127,7 @@ feed.appendChild(d);
 });
 }
 
+// ===== START =====
 function mostrar(){
 auth.style.display="none";
 social.style.display="block";
