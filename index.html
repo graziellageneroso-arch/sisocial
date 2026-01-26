@@ -3,21 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <title>SiSocial</title>
-
-<link rel="icon" type="image/png" href="icon.png">
-<link rel="apple-touch-icon" href="icon.png">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
 body{margin:0;font-family:Arial;background:#111;color:#fff}
 header{padding:10px;background:#222;text-align:center}
 input,button,textarea{width:100%;margin:5px 0;padding:8px}
-button{cursor:pointer}
+button{cursor:pointer;background:#1da1f2;color:white;border:none}
 #app{padding:10px}
-.post{background:#222;padding:10px;margin:10px 0}
-.small{font-size:12px;color:#aaa}
-.like{cursor:pointer;color:#0af}
-.comment{margin-left:10px;font-size:14px}
+.post{background:#222;padding:10px;margin:10px 0;border-radius:8px}
+.like{cursor:pointer;color:#1da1f2}
 </style>
 </head>
 
@@ -28,7 +23,6 @@ button{cursor:pointer}
 
 <div id="app">
 
-<!-- LOGIN / CADASTRO -->
 <div id="auth">
 <input id="user" placeholder="Usuário">
 <input id="pass" type="password" placeholder="Senha">
@@ -36,7 +30,6 @@ button{cursor:pointer}
 <button onclick="entrar()">Entrar</button>
 </div>
 
-<!-- APP -->
 <div id="social" style="display:none">
 <p>Logado como: <b id="logado"></b></p>
 <button onclick="sair()">Sair</button>
@@ -51,91 +44,103 @@ button{cursor:pointer}
 
 </div>
 
-<script>
-// ===== DADOS =====
-let usuarios=JSON.parse(localStorage.getItem("usuarios"))||[];
-let posts=JSON.parse(localStorage.getItem("posts"))||[];
-let atual=JSON.parse(localStorage.getItem("atual"))||null;
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// ===== AUTENTICAÇÃO =====
-function criarConta(){
-let u=user.value.trim(),p=pass.value;
-if(!u||!p)return alert("Preencha tudo");
-if(usuarios.find(x=>x.user===u))return alert("Usuário já existe");
-usuarios.push({user:u,pass:p});
-localStorage.setItem("usuarios",JSON.stringify(usuarios));
-atual=u;
-localStorage.setItem("atual",JSON.stringify(atual));
-mostrar();
+const firebaseConfig = {
+  apiKey: "AIzaSyClDT4Yl4nSOGLOR5sVXlnaf9pwnYjZHAw",
+  authDomain: "sisocial.firebaseapp.com",
+  projectId: "sisocial",
+  storageBucket: "sisocial.firebasestorage.app",
+  messagingSenderId: "25069295126",
+  appId: "1:25069295126:web:b460d4ccbeb77e529b0737"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+let atual = localStorage.getItem("atual");
+
+// ---------- AUTH ----------
+window.criarConta = async function(){
+  let u=user.value.trim(), p=pass.value;
+  if(!u||!p) return alert("Preencha tudo");
+
+  const usersRef = collection(db,"users");
+  const snap = await getDocs(usersRef);
+
+  if(snap.docs.some(d=>d.data().user===u))
+    return alert("Usuário já existe");
+
+  await addDoc(usersRef,{user:u,pass:p});
+  atual = u;
+  localStorage.setItem("atual",u);
+  mostrar();
 }
 
-function entrar(){
-let u=user.value,p=pass.value;
-let ok=usuarios.find(x=>x.user===u&&x.pass===p);
-if(!ok)return alert("Dados inválidos");
-atual=u;
-localStorage.setItem("atual",JSON.stringify(atual));
-mostrar();
+window.entrar = async function(){
+  let u=user.value,p=pass.value;
+  const snap = await getDocs(collection(db,"users"));
+  const ok = snap.docs.find(d=>d.data().user===u && d.data().pass===p);
+  if(!ok) return alert("Dados inválidos");
+  atual=u;
+  localStorage.setItem("atual",u);
+  mostrar();
 }
 
-function sair(){
-localStorage.removeItem("atual");
-location.reload();
+window.sair=function(){
+  localStorage.removeItem("atual");
+  location.reload();
 }
 
-// ===== POSTS =====
-function postar(){
-let t=postText.value.trim();
-if(!t)return;
-posts.unshift({user:atual,text:t,likes:0,comments:[]});
-localStorage.setItem("posts",JSON.stringify(posts));
-postText.value="";
-render();
+// ---------- POSTS ----------
+window.postar = async function(){
+  let t = postText.value.trim();
+  if(!t) return;
+  await addDoc(collection(db,"posts"),{
+    user: atual,
+    text: t,
+    likes: 0,
+    time: Date.now()
+  });
+  postText.value="";
+  render();
 }
 
-function like(i){
-posts[i].likes++;
-salvar();
+window.like = async function(id, likes){
+  await addDoc(collection(db,"likes"),{post:id}); // simples por enquanto
 }
 
-function comentar(i){
-let c=prompt("Comentário:");
-if(!c)return;
-posts[i].comments.push({user:atual,text:c});
-salvar();
+// ---------- RENDER ----------
+async function render(){
+  feed.innerHTML="Carregando...";
+  const q = query(collection(db,"posts"), orderBy("time","desc"));
+  const snap = await getDocs(q);
+
+  feed.innerHTML="";
+  snap.forEach(doc=>{
+    const p=doc.data();
+    const div=document.createElement("div");
+    div.className="post";
+    div.innerHTML=`
+      <b>${p.user}</b>
+      <p>${p.text}</p>
+    `;
+    feed.appendChild(div);
+  });
 }
 
-// ===== RENDER =====
-function salvar(){
-localStorage.setItem("posts",JSON.stringify(posts));
-render();
-}
-
-function render(){
-feed.innerHTML="";
-posts.forEach((p,i)=>{
-let d=document.createElement("div");
-d.className="post";
-d.innerHTML=`
-<b>${p.user}</b>
-<p>${p.text}</p>
-<span class="like" onclick="like(${i})">❤️ ${p.likes}</span>
-<button onclick="comentar(${i})">Comentar</button>
-<div>${p.comments.map(c=>`<div class="comment"><b>${c.user}:</b> ${c.text}</div>`).join("")}</div>
-`;
-feed.appendChild(d);
-});
-}
-
-// ===== START =====
 function mostrar(){
-auth.style.display="none";
-social.style.display="block";
-logado.innerText=atual;
-render();
+  auth.style.display="none";
+  social.style.display="block";
+  logado.innerText=atual;
+  render();
 }
 
-if(atual)mostrar();
+if(atual) mostrar();
 </script>
+
 </body>
 </html>
