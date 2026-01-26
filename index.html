@@ -7,44 +7,65 @@
 
 <style>
 body{margin:0;font-family:Arial;background:#111;color:#fff}
-header{padding:10px;background:#222;text-align:center}
-input,button,textarea{width:100%;margin:5px 0;padding:8px}
-button{cursor:pointer;background:#1da1f2;color:white;border:none}
+header{padding:10px;background:#222;display:flex;align-items:center;justify-content:space-between}
+header img{width:40px;height:40px;border-radius:50%;object-fit:cover;cursor:pointer}
 #app{padding:10px}
-.post{background:#222;padding:10px;margin:10px 0;border-radius:8px}
-.like{cursor:pointer;color:#1da1f2}
+input,textarea,button{width:100%;margin:6px 0;padding:8px;border-radius:6px;border:none}
+button{background:#1da1f2;color:#fff;font-weight:bold}
+.post{background:#1a1a1a;padding:10px;margin:10px 0;border-radius:10px}
+.post img,.post video{width:100%;border-radius:10px;margin-top:6px}
+.card{background:#1a1a1a;padding:10px;border-radius:10px;margin:10px 0}
+.small{opacity:.7;font-size:12px}
+.hidden{display:none}
+.profile-switch img{width:40px;height:40px;border-radius:50%;margin:5px;cursor:pointer}
 </style>
 </head>
 
 <body>
+
 <header>
-<h2>SiSocial</h2>
+  <b>SiSocial</b>
+  <img id="pfpTop" onclick="toggleProfiles()">
 </header>
 
 <div id="app">
 
-<div id="auth">
-<input id="user" placeholder="Usuário">
-<input id="pass" type="password" placeholder="Senha">
-<button onclick="criarConta()">Criar conta</button>
-<button onclick="entrar()">Entrar</button>
+<!-- LOGIN / CADASTRO -->
+<div id="auth" class="card">
+  <input id="user" placeholder="Usuário">
+  <input id="pass" type="password" placeholder="Senha">
+  <input id="photo" type="file" accept="image/*">
+  <button onclick="criarConta()">Criar conta</button>
+  <button onclick="entrar()">Entrar</button>
 </div>
 
-<div id="social" style="display:none">
-<p>Logado como: <b id="logado"></b></p>
-<button onclick="sair()">Sair</button>
+<!-- PERFIS -->
+<div id="profiles" class="card hidden">
+  <b>Perfis</b>
+  <div class="profile-switch" id="profilesList"></div>
+  <button onclick="novoPerfil()">Novo usuário</button>
+</div>
 
-<h3>Novo post</h3>
-<textarea id="postText" placeholder="O que você está pensando?"></textarea>
-<button onclick="postar()">Postar</button>
+<!-- APP -->
+<div id="social" class="hidden">
 
-<h3>Feed</h3>
+<div class="card">
+  <b id="logado"></b>
+  <button onclick="verPerfil()">Perfil</button>
+  <button onclick="sair()">Sair</button>
+</div>
+
+<div class="card">
+  <textarea id="postText" placeholder="O que você quer postar?"></textarea>
+  <input type="file" id="media" accept="image/*,video/*">
+  <button onclick="postar()">Postar</button>
+</div>
+
 <div id="feed"></div>
-</div>
 
 </div>
+</div>
 
-<!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -62,22 +83,27 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 let atual = localStorage.getItem("atual");
+let usuariosLocal = JSON.parse(localStorage.getItem("perfis")) || [];
+
+function savePerfis(){
+  localStorage.setItem("perfis", JSON.stringify(usuariosLocal));
+}
 
 // ---------- AUTH ----------
 window.criarConta = async function(){
-  let u=user.value.trim(), p=pass.value;
-  if(!u||!p) return alert("Preencha tudo");
+  let u=user.value.trim(), p=pass.value, file=photo.files[0];
+  if(!u||!p||!file) return alert("Preencha tudo");
 
-  const usersRef = collection(db,"users");
-  const snap = await getDocs(usersRef);
-
-  if(snap.docs.some(d=>d.data().user===u))
-    return alert("Usuário já existe");
-
-  await addDoc(usersRef,{user:u,pass:p});
-  atual = u;
-  localStorage.setItem("atual",u);
-  mostrar();
+  const reader = new FileReader();
+  reader.onload = async ()=>{
+    await addDoc(collection(db,"users"),{user:u,pass:p,photo:reader.result});
+    usuariosLocal.push({user:u,pass:p,photo:reader.result});
+    savePerfis();
+    atual=u;
+    localStorage.setItem("atual",u);
+    mostrar();
+  };
+  reader.readAsDataURL(file);
 }
 
 window.entrar = async function(){
@@ -85,9 +111,67 @@ window.entrar = async function(){
   const snap = await getDocs(collection(db,"users"));
   const ok = snap.docs.find(d=>d.data().user===u && d.data().pass===p);
   if(!ok) return alert("Dados inválidos");
+
   atual=u;
   localStorage.setItem("atual",u);
+  if(!usuariosLocal.find(x=>x.user===u)){
+    usuariosLocal.push(ok.data());
+    savePerfis();
+  }
   mostrar();
+}
+
+// ---------- POSTS ----------
+window.postar = async function(){
+  let t=postText.value;
+  let file=media.files[0];
+  if(!t && !file) return;
+
+  let post={user:atual,text:t,time:Date.now()};
+  if(file){
+    const r=new FileReader();
+    r.onload=async ()=>{
+      post.media=r.result;
+      post.type=file.type;
+      await addDoc(collection(db,"posts"),post);
+      render();
+    };
+    r.readAsDataURL(file);
+  }else{
+    await addDoc(collection(db,"posts"),post);
+    render();
+  }
+  postText.value=""; media.value="";
+}
+
+// ---------- RENDER ----------
+async function render(){
+  feed.innerHTML="Carregando...";
+  const q=query(collection(db,"posts"),orderBy("time","desc"));
+  const snap=await getDocs(q);
+  feed.innerHTML="";
+  snap.forEach(doc=>{
+    const p=doc.data();
+    if(p.user!==atual && window.onlyProfile) return;
+    const d=document.createElement("div");
+    d.className="post";
+    d.innerHTML=`<b>${p.user}</b><p>${p.text||""}</p>`;
+    if(p.media){
+      if(p.type.startsWith("image")) d.innerHTML+=`<img src="${p.media}">`;
+      if(p.type.startsWith("video")) d.innerHTML+=`<video src="${p.media}" controls></video>`;
+    }
+    feed.appendChild(d);
+  });
+}
+
+// ---------- UI ----------
+function mostrar(){
+  auth.classList.add("hidden");
+  social.classList.remove("hidden");
+  const perfil=usuariosLocal.find(x=>x.user===atual);
+  logado.innerText=atual;
+  pfpTop.src=perfil?.photo||"";
+  render();
 }
 
 window.sair=function(){
@@ -95,52 +179,29 @@ window.sair=function(){
   location.reload();
 }
 
-// ---------- POSTS ----------
-window.postar = async function(){
-  let t = postText.value.trim();
-  if(!t) return;
-  await addDoc(collection(db,"posts"),{
-    user: atual,
-    text: t,
-    likes: 0,
-    time: Date.now()
-  });
-  postText.value="";
-  render();
-}
-
-window.like = async function(id, likes){
-  await addDoc(collection(db,"likes"),{post:id}); // simples por enquanto
-}
-
-// ---------- RENDER ----------
-async function render(){
-  feed.innerHTML="Carregando...";
-  const q = query(collection(db,"posts"), orderBy("time","desc"));
-  const snap = await getDocs(q);
-
-  feed.innerHTML="";
-  snap.forEach(doc=>{
-    const p=doc.data();
-    const div=document.createElement("div");
-    div.className="post";
-    div.innerHTML=`
-      <b>${p.user}</b>
-      <p>${p.text}</p>
-    `;
-    feed.appendChild(div);
+window.toggleProfiles=function(){
+  profiles.classList.toggle("hidden");
+  profilesList.innerHTML="";
+  usuariosLocal.forEach(u=>{
+    let img=document.createElement("img");
+    img.src=u.photo;
+    img.onclick=()=>{atual=u.user;localStorage.setItem("atual",atual);mostrar();}
+    profilesList.appendChild(img);
   });
 }
 
-function mostrar(){
-  auth.style.display="none";
-  social.style.display="block";
-  logado.innerText=atual;
+window.novoPerfil=function(){
+  profiles.classList.add("hidden");
+  auth.classList.remove("hidden");
+  social.classList.add("hidden");
+}
+
+window.verPerfil=function(){
+  window.onlyProfile=true;
   render();
 }
 
 if(atual) mostrar();
 </script>
-
 </body>
 </html>
