@@ -5,24 +5,29 @@
 <title>SiSocial</title>
 
 <link rel="icon" href="icon.png.PNG" type="image/png">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
 body{margin:0;font-family:Arial;background:#111;color:#fff}
-header{padding:10px;background:#222;text-align:center;font-weight:bold}
-button,input,textarea{width:100%;margin:5px 0;padding:8px}
+header{background:#222;padding:10px;text-align:center}
+input,button,textarea{width:100%;margin:6px 0;padding:8px}
+button{cursor:pointer}
 .hidden{display:none}
-.post{background:#222;padding:10px;margin:10px 0;border-radius:6px}
+.post{background:#222;padding:10px;margin:10px 0}
 img{max-width:100%;border-radius:6px}
-.like{color:#0af;cursor:pointer}
-.user{cursor:pointer;color:#6cf}
-.chat{background:#000;padding:10px;height:200px;overflow:auto}
+.like{color:#f44;cursor:pointer}
+.user{cursor:pointer;color:#0af}
 </style>
 </head>
 
 <body>
 
-<header>SiSocial</header>
+<header>
+<h2>SiSocial</h2>
+</header>
 
 <div id="auth">
 <input id="user" placeholder="Usuário">
@@ -33,168 +38,158 @@ img{max-width:100%;border-radius:6px}
 
 <div id="app" class="hidden">
 
-<p>Logado como: <b id="me"></b></p>
+<p>Logado como <b id="me"></b></p>
+<button onclick="logout()">Trocar usuário</button>
 
 <h3>Novo post</h3>
 <input type="file" accept="image/*" onchange="loadImage(event)">
-<textarea id="text" placeholder="Legenda"></textarea>
+<img id="preview">
 <button onclick="post()">Postar</button>
-
-<h3>Usuários</h3>
-<div id="users"></div>
 
 <h3>Feed</h3>
 <div id="feed"></div>
 
+<h3>Usuários</h3>
+<div id="users"></div>
+
 <h3>Chat</h3>
-<div id="chatArea" class="hidden">
-<div id="chat" class="chat"></div>
-<input id="msg" placeholder="Mensagem">
+<div id="chat"></div>
+<input id="msg">
 <button onclick="sendMsg()">Enviar</button>
-</div>
 
 </div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import {
-  getFirestore, collection, doc, setDoc, getDoc,
-  getDocs, addDoc, onSnapshot
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyClDT4Yl4nSOGLOR5sVXlnaf9pwnYjZHAw",
   authDomain: "sisocial.firebaseapp.com",
-  projectId: "sisocial",
+  projectId: "sisocial"
 };
 
-const appFB = initializeApp(firebaseConfig);
-const db = getFirestore(appFB);
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
-let current=null;
-let imgBase64=null;
-let currentChat=null;
+let currentUser = null;
+let currentImage = null;
+let chatWith = null;
 
-// ===== AUTH =====
-async function register(){
-  if(!user.value||!pass.value)return alert("Preencha tudo");
-  const ref=doc(db,"users",user.value);
-  if((await getDoc(ref)).exists())return alert("Usuário existe");
-  await setDoc(ref,{pass:pass.value,follow:[]});
-  login();
+function register(){
+  const u=user.value,p=pass.value;
+  if(!u||!p)return alert("Preencha tudo");
+  db.collection("users").doc(u).get().then(d=>{
+    if(d.exists) return alert("Usuário existe");
+    db.collection("users").doc(u).set({pass:p,following:[]});
+    currentUser=u; start();
+  });
 }
 
-async function login(){
-  const ref=doc(db,"users",user.value);
-  const snap=await getDoc(ref);
-  if(!snap.exists()||snap.data().pass!==pass.value)return alert("Erro");
-  current=user.value;
+function login(){
+  const u=user.value,p=pass.value;
+  db.collection("users").doc(u).get().then(d=>{
+    if(!d.exists||d.data().pass!==p) return alert("Erro");
+    currentUser=u; start();
+  });
+}
+
+function logout(){location.reload();}
+
+function start(){
   auth.classList.add("hidden");
   app.classList.remove("hidden");
-  me.innerText=current;
-  loadUsers();
-  loadFeed();
+  me.innerText=currentUser;
+  loadUsers(); loadFeed(); loadChat();
 }
 
-// ===== IMAGE =====
-function loadImage(e){
-  const r=new FileReader();
-  r.onload=()=>imgBase64=r.result;
-  r.readAsDataURL(e.target.files[0]);
-}
-
-// ===== POST =====
-async function post(){
-  if(!imgBase64)return alert("Imagem obrigatória");
-  await addDoc(collection(db,"posts"),{
-    user:current,
-    text:text.value,
-    img:imgBase64,
-    likes:[]
-  });
-  text.value="";
-  imgBase64=null;
-}
-
-// ===== USERS =====
-async function loadUsers(){
+function loadUsers(){
   users.innerHTML="";
-  const snap=await getDocs(collection(db,"users"));
-  snap.forEach(u=>{
-    if(u.id!==current){
-      users.innerHTML+=`
-      <div class="user" onclick="follow('${u.id}')">${u.id}</div>`;
-    }
-  });
-}
-
-async function follow(u){
-  const ref=doc(db,"users",current);
-  const data=(await getDoc(ref)).data();
-  if(!data.follow.includes(u)){
-    data.follow.push(u);
-    await setDoc(ref,data);
-  }
-}
-
-// ===== FEED =====
-function loadFeed(){
-  onSnapshot(collection(db,"posts"),snap=>{
-    feed.innerHTML="";
-    snap.forEach(p=>{
-      const d=p.data();
-      if(d.user===current || isFollowing(d.user)){
-        feed.innerHTML+=`
-        <div class="post">
-        <b>${d.user}</b>
-        <img src="${d.img}">
-        <p>${d.text}</p>
-        <span class="like" onclick="like('${p.id}')">❤️ ${d.likes.length}</span>
-        <button onclick="openChat('${d.user}')">Chat</button>
-        </div>`;
+  db.collection("users").get().then(s=>{
+    s.forEach(d=>{
+      if(d.id!==currentUser){
+        users.innerHTML+=`<div class="user" onclick="follow('${d.id}')">@${d.id}</div>`;
       }
     });
   });
 }
 
-async function isFollowing(u){
-  const meData=(await getDoc(doc(db,"users",current))).data();
-  return meData.follow.includes(u);
+function follow(u){
+  const ref=db.collection("users").doc(currentUser);
+  ref.update({following:firebase.firestore.FieldValue.arrayUnion(u)});
+  loadFeed();
 }
 
-// ===== LIKE =====
-async function like(id){
-  const ref=doc(db,"posts",id);
-  const d=(await getDoc(ref)).data();
-  if(!d.likes.includes(current)){
-    d.likes.push(current);
-    await setDoc(ref,d);
-  }
+function loadImage(e){
+  const r=new FileReader();
+  r.onload=()=>{preview.src=r.result; currentImage=r.result;}
+  r.readAsDataURL(e.target.files[0]);
 }
 
-// ===== CHAT (mutual follow) =====
-async function openChat(u){
-  const a=(await getDoc(doc(db,"users",current))).data().follow;
-  const b=(await getDoc(doc(db,"users",u))).data().follow;
-  if(!a.includes(u)||!b.includes(current))return alert("Chat bloqueado");
-  currentChat=[current,u].sort().join("_");
-  chatArea.classList.remove("hidden");
-  onSnapshot(collection(db,"chats",currentChat,"msgs"),s=>{
-    chat.innerHTML="";
-    s.forEach(m=>{
-      chat.innerHTML+=`<p><b>${m.data().u}:</b> ${m.data().t}</p>`;
+function post(){
+  if(!currentImage)return alert("Imagem obrigatória");
+  db.collection("posts").add({
+    user:currentUser,
+    img:currentImage,
+    likes:[],
+    at:Date.now()
+  });
+  preview.src=""; currentImage=null;
+  loadFeed();
+}
+
+function loadFeed(){
+  feed.innerHTML="";
+  db.collection("users").doc(currentUser).get().then(u=>{
+    const following=u.data().following;
+    db.collection("posts").orderBy("at","desc").get().then(s=>{
+      s.forEach(d=>{
+        const p=d.data();
+        if(following.includes(p.user)||p.user===currentUser){
+          feed.innerHTML+=`
+          <div class="post">
+            <b>${p.user}</b><br>
+            <img src="${p.img}">
+            <div class="like" onclick="like('${d.id}')">❤️ ${p.likes.length}</div>
+            <button onclick="openChat('${p.user}')">Chat</button>
+          </div>`;
+        }
+      });
     });
   });
 }
 
-async function sendMsg(){
-  if(!msg.value)return;
-  await addDoc(collection(db,"chats",currentChat,"msgs"),{
-    u:current,t:msg.value
-  });
-  msg.value="";
+function like(id){
+  const ref=db.collection("posts").doc(id);
+  ref.update({likes:firebase.firestore.FieldValue.arrayUnion(currentUser)});
+  loadFeed();
 }
 
+function openChat(u){chatWith=u; loadChat();}
+
+function loadChat(){
+  chat.innerHTML="";
+  if(!chatWith)return;
+  db.collection("chats")
+  .where("users","array-contains",currentUser)
+  .get().then(s=>{
+    s.forEach(d=>{
+      const m=d.data();
+      if(m.users.includes(chatWith)){
+        chat.innerHTML+=`<div><b>${m.from}:</b> ${m.text}</div>`;
+      }
+    });
+  });
+}
+
+function sendMsg(){
+  if(!chatWith)return;
+  db.collection("chats").add({
+    users:[currentUser,chatWith],
+    from:currentUser,
+    text:msg.value,
+    at:Date.now()
+  });
+  msg.value=""; loadChat();
+}
 </script>
+
 </body>
 </html>
