@@ -4,140 +4,197 @@
 <meta charset="UTF-8">
 <title>SiSocial</title>
 
-<!-- FAVICON CORRIGIDO PARA COMBINAR COM O NOME DO ARQUIVO -->
-<link rel="icon" type="image/png" href="icon.png.PNG">
-
+<link rel="icon" href="icon.png.PNG" type="image/png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
 body{margin:0;font-family:Arial;background:#111;color:#fff}
-header{padding:10px;background:#222;text-align:center}
-input,button,textarea{width:100%;margin:5px 0;padding:8px}
-button{cursor:pointer}
-#app{padding:10px}
-.post{background:#222;padding:10px;margin:10px 0}
-.small{font-size:12px;color:#aaa}
-.like{cursor:pointer;color:#0af}
-.comment{margin-left:10px;font-size:14px}
+header{padding:10px;background:#222;text-align:center;font-weight:bold}
+button,input,textarea{width:100%;margin:5px 0;padding:8px}
+.hidden{display:none}
+.post{background:#222;padding:10px;margin:10px 0;border-radius:6px}
+img{max-width:100%;border-radius:6px}
+.like{color:#0af;cursor:pointer}
+.user{cursor:pointer;color:#6cf}
+.chat{background:#000;padding:10px;height:200px;overflow:auto}
 </style>
 </head>
 
 <body>
-<header>
-<h2>SiSocial</h2>
-</header>
 
-<div id="app">
+<header>SiSocial</header>
 
-<!-- LOGIN / CADASTRO -->
 <div id="auth">
 <input id="user" placeholder="Usuário">
 <input id="pass" type="password" placeholder="Senha">
-<button onclick="criarConta()">Criar conta</button>
-<button onclick="entrar()">Entrar</button>
+<button onclick="register()">Criar conta</button>
+<button onclick="login()">Entrar</button>
 </div>
 
-<!-- APP -->
-<div id="social" style="display:none">
-<p>Logado como: <b id="logado"></b></p>
-<button onclick="sair()">Sair</button>
+<div id="app" class="hidden">
+
+<p>Logado como: <b id="me"></b></p>
 
 <h3>Novo post</h3>
-<textarea id="postText" placeholder="O que você está pensando?"></textarea>
-<button onclick="postar()">Postar</button>
+<input type="file" accept="image/*" onchange="loadImage(event)">
+<textarea id="text" placeholder="Legenda"></textarea>
+<button onclick="post()">Postar</button>
+
+<h3>Usuários</h3>
+<div id="users"></div>
 
 <h3>Feed</h3>
 <div id="feed"></div>
+
+<h3>Chat</h3>
+<div id="chatArea" class="hidden">
+<div id="chat" class="chat"></div>
+<input id="msg" placeholder="Mensagem">
+<button onclick="sendMsg()">Enviar</button>
 </div>
 
 </div>
 
-<script>
-// ===== DADOS =====
-let usuarios=JSON.parse(localStorage.getItem("usuarios"))||[];
-let posts=JSON.parse(localStorage.getItem("posts"))||[];
-let atual=JSON.parse(localStorage.getItem("atual"))||null;
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getFirestore, collection, doc, setDoc, getDoc,
+  getDocs, addDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// ===== AUTENTICAÇÃO =====
-function criarConta(){
-  let u=user.value.trim(),p=pass.value;
-  if(!u||!p)return alert("Preencha tudo");
-  if(usuarios.find(x=>x.user===u))return alert("Usuário já existe");
+const firebaseConfig = {
+  apiKey: "AIzaSyClDT4Yl4nSOGLOR5sVXlnaf9pwnYjZHAw",
+  authDomain: "sisocial.firebaseapp.com",
+  projectId: "sisocial",
+};
 
-  usuarios.push({user:u,pass:p});
-  localStorage.setItem("usuarios",JSON.stringify(usuarios));
+const appFB = initializeApp(firebaseConfig);
+const db = getFirestore(appFB);
 
-  atual=u;
-  localStorage.setItem("atual",JSON.stringify(atual));
-  mostrar();
+let current=null;
+let imgBase64=null;
+let currentChat=null;
+
+// ===== AUTH =====
+async function register(){
+  if(!user.value||!pass.value)return alert("Preencha tudo");
+  const ref=doc(db,"users",user.value);
+  if((await getDoc(ref)).exists())return alert("Usuário existe");
+  await setDoc(ref,{pass:pass.value,follow:[]});
+  login();
 }
 
-function entrar(){
-  let u=user.value,p=pass.value;
-  let ok=usuarios.find(x=>x.user===u&&x.pass===p);
-  if(!ok)return alert("Dados inválidos");
-  atual=u;
-  localStorage.setItem("atual",JSON.stringify(atual));
-  mostrar();
+async function login(){
+  const ref=doc(db,"users",user.value);
+  const snap=await getDoc(ref);
+  if(!snap.exists()||snap.data().pass!==pass.value)return alert("Erro");
+  current=user.value;
+  auth.classList.add("hidden");
+  app.classList.remove("hidden");
+  me.innerText=current;
+  loadUsers();
+  loadFeed();
 }
 
-function sair(){
-  localStorage.removeItem("atual");
-  location.reload();
+// ===== IMAGE =====
+function loadImage(e){
+  const r=new FileReader();
+  r.onload=()=>imgBase64=r.result;
+  r.readAsDataURL(e.target.files[0]);
 }
 
-// ===== POSTS =====
-function postar(){
-  let t=postText.value.trim();
-  if(!t)return;
-  posts.unshift({user:atual,text:t,likes:0,comments:[]});
-  localStorage.setItem("posts",JSON.stringify(posts));
-  postText.value="";
-  render();
+// ===== POST =====
+async function post(){
+  if(!imgBase64)return alert("Imagem obrigatória");
+  await addDoc(collection(db,"posts"),{
+    user:current,
+    text:text.value,
+    img:imgBase64,
+    likes:[]
+  });
+  text.value="";
+  imgBase64=null;
 }
 
-function like(i){
-  posts[i].likes++;
-  salvar();
-}
-
-function comentar(i){
-  let c=prompt("Comentário:");
-  if(!c)return;
-  posts[i].comments.push({user:atual,text:c});
-  salvar();
-}
-
-// ===== RENDER =====
-function salvar(){
-  localStorage.setItem("posts",JSON.stringify(posts));
-  render();
-}
-
-function render(){
-  feed.innerHTML="";
-  posts.forEach((p,i)=>{
-    let d=document.createElement("div");
-    d.className="post";
-    d.innerHTML=`
-<b>${p.user}</b>
-<p>${p.text}</p>
-<span class="like" onclick="like(${i})">❤️ ${p.likes}</span>
-<button onclick="comentar(${i})">Comentar</button>
-<div>${p.comments.map(c=>`<div class="comment"><b>${c.user}:</b> ${c.text}</div>`).join("")}</div>
-`;
-    feed.appendChild(d);
+// ===== USERS =====
+async function loadUsers(){
+  users.innerHTML="";
+  const snap=await getDocs(collection(db,"users"));
+  snap.forEach(u=>{
+    if(u.id!==current){
+      users.innerHTML+=`
+      <div class="user" onclick="follow('${u.id}')">${u.id}</div>`;
+    }
   });
 }
 
-// ===== START =====
-function mostrar(){
-  auth.style.display="none";
-  social.style.display="block";
-  logado.innerText=atual;
-  render();
+async function follow(u){
+  const ref=doc(db,"users",current);
+  const data=(await getDoc(ref)).data();
+  if(!data.follow.includes(u)){
+    data.follow.push(u);
+    await setDoc(ref,data);
+  }
 }
 
-if(atual)mostrar();
+// ===== FEED =====
+function loadFeed(){
+  onSnapshot(collection(db,"posts"),snap=>{
+    feed.innerHTML="";
+    snap.forEach(p=>{
+      const d=p.data();
+      if(d.user===current || isFollowing(d.user)){
+        feed.innerHTML+=`
+        <div class="post">
+        <b>${d.user}</b>
+        <img src="${d.img}">
+        <p>${d.text}</p>
+        <span class="like" onclick="like('${p.id}')">❤️ ${d.likes.length}</span>
+        <button onclick="openChat('${d.user}')">Chat</button>
+        </div>`;
+      }
+    });
+  });
+}
+
+async function isFollowing(u){
+  const meData=(await getDoc(doc(db,"users",current))).data();
+  return meData.follow.includes(u);
+}
+
+// ===== LIKE =====
+async function like(id){
+  const ref=doc(db,"posts",id);
+  const d=(await getDoc(ref)).data();
+  if(!d.likes.includes(current)){
+    d.likes.push(current);
+    await setDoc(ref,d);
+  }
+}
+
+// ===== CHAT (mutual follow) =====
+async function openChat(u){
+  const a=(await getDoc(doc(db,"users",current))).data().follow;
+  const b=(await getDoc(doc(db,"users",u))).data().follow;
+  if(!a.includes(u)||!b.includes(current))return alert("Chat bloqueado");
+  currentChat=[current,u].sort().join("_");
+  chatArea.classList.remove("hidden");
+  onSnapshot(collection(db,"chats",currentChat,"msgs"),s=>{
+    chat.innerHTML="";
+    s.forEach(m=>{
+      chat.innerHTML+=`<p><b>${m.data().u}:</b> ${m.data().t}</p>`;
+    });
+  });
+}
+
+async function sendMsg(){
+  if(!msg.value)return;
+  await addDoc(collection(db,"chats",currentChat,"msgs"),{
+    u:current,t:msg.value
+  });
+  msg.value="";
+}
+
 </script>
 </body>
 </html>
